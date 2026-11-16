@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>gander</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◉</span>
+    <span class="repo" id="repo-name">gander</span>
+    <span class="branch" id="repo-branch" hidden></span>
+  </div>
+  <div class="spacer"></div>
+  <input id="filter" class="filter" type="search" placeholder="Filter files…" autocomplete="off" spellcheck="false">
+  <span class="status" id="status" title="live reload">●&nbsp;live</span>
+</header>
+
+<main class="layout">
+  <aside class="sidebar">
+    <div class="tree" id="tree"></div>
+  </aside>
+  <section class="preview" id="preview">
+    <div class="welcome" id="welcome">
+      <h1 id="welcome-title">gander</h1>
+      <p>Select a file to preview it. Markdown, images, GIFs, video and code are all rendered locally — nothing leaves your machine.</p>
+      <p class="hint">Edits on disk appear here automatically.</p>
+    </div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
