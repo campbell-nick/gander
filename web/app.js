@@ -14,12 +14,29 @@ const AUD = new Set(["mp3", "ogg", "oga", "wav", "flac", "m4a"]);
 const MD = new Set(["md", "markdown"]);
 const PDF = new Set(["pdf"]);
 
+/* How each git status is shown: a one-letter badge and a colour class. */
+const STATUS = {
+  modified: { letter: "M", cls: "st-mod" },
+  added: { letter: "A", cls: "st-add" },
+  deleted: { letter: "D", cls: "st-del" },
+  renamed: { letter: "R", cls: "st-ren" },
+  copied: { letter: "C", cls: "st-ren" },
+  untracked: { letter: "U", cls: "st-unt" },
+  conflicted: { letter: "U", cls: "st-con" },
+  typechange: { letter: "T", cls: "st-mod" },
+};
+
 const state = {
   files: [],
   expanded: new Set(),
   selected: null,
   filter: "",
   meta: null,
+  isGit: false,
+  status: new Map(), // path -> { path, code, status }
+  log: [],
+  view: "preview", // "preview" | "git"
+  mode: "content", // "content" | "diff" (what the preview pane shows)
 };
 
 /* ------------------------------------------------------------- helpers --- */
@@ -48,6 +65,41 @@ function formatBytes(n) {
     i++;
   }
   return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
+}
+
+/* -------------------------------------------------------------- git state --- */
+
+/* Status of a file: its own entry, or the enclosing untracked directory. */
+function statusFor(path) {
+  const e = state.status.get(path);
+  if (e) return e.status;
+  let idx = path.lastIndexOf("/");
+  while (idx > 0) {
+    const key = path.slice(0, idx) + "/";
+    const d = state.status.get(key);
+    if (d) return d.status;
+    idx = path.lastIndexOf("/", idx - 1);
+  }
+  return null;
+}
+
+/* Every directory that contains a change, for a marker on folder rows. */
+function dirtyDirs() {
+  const s = new Set();
+  for (const p of state.status.keys()) {
+    let idx = p.lastIndexOf("/");
+    while (idx > 0) {
+      s.add(p.slice(0, idx));
+      idx = p.lastIndexOf("/", idx - 1);
+    }
+  }
+  return s;
+}
+
+function statusBadge(status) {
+  const s = STATUS[status];
+  if (!s) return "";
+  return `<span class="st ${s.cls}" title="${status}">${s.letter}</span>`;
 }
 
 /* ------------------------------------------------------------ the tree --- */
@@ -84,7 +136,7 @@ function dirHasMatch(node, prefix) {
   return false;
 }
 
-function renderNode(node, prefix, container) {
+function renderNode(node, prefix, container, dirty) {
   const dirs = [...node.dirs.entries()].sort((a, b) =>
     a[0].localeCompare(b[0], undefined, { sensitivity: "base" }));
   const files = node.files.slice().sort((a, b) =>
@@ -100,9 +152,10 @@ function renderNode(node, prefix, container) {
 
     const row = document.createElement("div");
     row.className = "row";
+    const mark = dirty.has(path) ? '<span class="st-dot" title="contains changes"></span>' : "";
     row.innerHTML =
       `<span class="caret">${open ? "▾" : "▸"}</span>` +
-      `<span class="icon">📁</span><span class="name">${esc(name)}</span>`;
+      `<span class="icon">📁</span><span class="name">${esc(name)}</span>${mark}`;
     row.onclick = () => {
       if (state.expanded.has(path)) state.expanded.delete(path);
       else state.expanded.add(path);
@@ -112,18 +165,20 @@ function renderNode(node, prefix, container) {
 
     const kids = document.createElement("div");
     kids.className = "children" + (open ? "" : " hidden");
-    renderNode(child, path, kids);
+    renderNode(child, path, kids, dirty);
     wrap.appendChild(kids);
     container.appendChild(wrap);
   }
 
   for (const f of files) {
     if (!matchesFilter(f.path)) continue;
+    const st = statusFor(f.path);
     const row = document.createElement("div");
     row.className = "row" + (state.selected === f.path ? " selected" : "");
     row.innerHTML =
       `<span class="caret"></span><span class="icon">${iconFor(f.path)}</span>` +
-      `<span class="name">${esc(f.name)}</span>`;
+      `<span class="name">${esc(f.name)}</span>` +
+      (st ? statusBadge(st) : "");
     row.onclick = () => select(f.path);
     container.appendChild(row);
   }
@@ -140,6 +195,8 @@ function iconFor(path) {
 }
 
 function renderTree() {
+  const sidebar = document.querySelector(".sidebar");
+  const sc = sidebar ? sidebar.scrollTop : 0;
   const tree = buildTree(state.files);
   const el = $("tree");
   el.textContent = "";
@@ -147,14 +204,16 @@ function renderTree() {
     el.innerHTML = '<div class="row"><span class="name">(no files)</span></div>';
     return;
   }
-  renderNode(tree, "", el);
+  renderNode(tree, "", el, dirtyDirs());
+  if (sidebar) sidebar.scrollTop = sc;
 }
 
 /* ---------------------------------------------------------- the preview --- */
 
-function head(path, meta) {
+function head(path, meta, actions) {
   return (
     `<div class="preview-head"><span class="path">${esc(path)}</span>` +
+    (actions ? `<span class="head-actions">${actions}</span>` : "") +
     `<span class="meta">${meta || ""}</span></div>`
   );
 }
@@ -186,7 +245,7 @@ function renderHome() {
   if (m.is_git) {
     chips.push(`<span class="chip">${m.commits.toLocaleString()} commits</span>`);
     chips.push(
-      `<span class="chip">${m.dirty
+      `<span class="chip clickable" data-action="git" title="show changes">${m.dirty
         ? `<span class="dot" style="color:var(--yellow)"></span>${m.changes} uncommitted`
         : `<span class="dot" style="color:var(--green)"></span>clean`}</span>`
     );
@@ -231,12 +290,92 @@ function renderHome() {
 }
 
 function showHome() {
+  state.view = "preview";
   state.selected = null;
   renderTree();
   renderHome();
 }
 
-function select(path) {
+/* The git panel: working-tree changes grouped by state, plus recent commits. */
+function renderGit() {
+  const pane = $("preview");
+  state.view = "git";
+  const m = state.meta || {};
+
+  const groups = { conflicted: [], staged: [], changes: [], untracked: [] };
+  for (const [path, e] of state.status) {
+    if (e.code === "??") groups.untracked.push(path);
+    else if (e.status === "conflicted") groups.conflicted.push(path);
+    else {
+      if (e.code[0] !== " " && e.code[0] !== "?") groups.staged.push(path);
+      if (e.code[1] !== " " && e.code[1] !== "?") groups.changes.push(path);
+    }
+  }
+  for (const k of Object.keys(groups))
+    groups[k].sort((a, b) => a.localeCompare(b));
+
+  const total = state.status.size;
+
+  const group = (title, paths) => {
+    if (!paths.length) return "";
+    const rows = paths
+      .map((p) => {
+        const st = statusFor(p) || "modified";
+        return (
+          `<li class="change" data-action="select" data-path="${esc(p)}">` +
+          statusBadge(st) +
+          `<span class="cpath">${esc(p)}</span></li>`
+        );
+      })
+      .join("");
+    return (
+      `<div class="change-group"><h3>${title} <span class="count">${paths.length}</span></h3>` +
+      `<ul class="changelist">${rows}</ul></div>`
+    );
+  };
+
+  const changesHtml =
+    total === 0
+      ? '<p class="clean-note">Working tree clean — nothing to commit.</p>'
+      : group("Conflicts", groups.conflicted) +
+        group("Staged", groups.staged) +
+        group("Changes", groups.changes) +
+        group("Untracked", groups.untracked);
+
+  const commits = state.log.length
+    ? state.log
+        .map(
+          (c) =>
+            `<li class="commit"><span class="hash">${esc(c.hash)}</span>` +
+            `<span class="subject">${esc(c.subject)}</span>` +
+            `<span class="who">${esc(c.author)} · ${esc(c.when)}</span></li>`
+        )
+        .join("")
+    : '<li class="commit empty">No commits yet.</li>';
+
+  const branchMeta = m.branch
+    ? `${esc(m.branch)} · ${total} changed`
+    : `${total} changed`;
+
+  pane.innerHTML =
+    head("Changes", branchMeta) +
+    '<div class="preview-body"><div class="git-panel">' +
+    changesHtml +
+    '<h3 class="commits-h">Recent commits</h3>' +
+    `<ul class="commitlist">${commits}</ul>` +
+    "</div></div>";
+}
+
+function openGit() {
+  state.selected = null;
+  state.view = "git";
+  renderTree();
+  renderGit();
+  loadLog();
+}
+
+function select(path, mode = "content") {
+  state.view = "preview";
   state.selected = path;
   // make sure the tree reveals the selection
   const parts = path.split("/");
@@ -246,15 +385,21 @@ function select(path) {
     state.expanded.add(acc);
   }
   renderTree();
-  showPreview(path, true);
+  if (mode === "diff") showDiff(path, true);
+  else showPreview(path, true);
 }
 
 async function showPreview(path, resetScroll) {
   const pane = $("preview");
+  state.view = "preview";
+  state.mode = "content";
   const e = ext(path);
   const keepScroll = resetScroll ? 0 : pane.scrollTop;
+  const actions = statusFor(path)
+    ? '<button class="btn" data-action="diff">Diff</button>'
+    : "";
 
-  const render = (html, center) => {
+  const render = (html) => {
     pane.innerHTML = html;
     if (!resetScroll) pane.scrollTop = keepScroll;
   };
@@ -264,25 +409,25 @@ async function showPreview(path, resetScroll) {
       const res = await fetch(`/api/md?path=${encodeURIComponent(path)}`);
       if (!res.ok) throw new Error(res.statusText);
       const html = await res.text();
-      render(head(path, "markdown") + `<div class="preview-body"><article class="markdown">${html}</article></div>`);
+      render(head(path, "markdown", actions) + `<div class="preview-body"><article class="markdown">${html}</article></div>`);
     } else if (IMG.has(e)) {
       render(
-        head(path, "image") +
+        head(path, "image", actions) +
           `<div class="preview-body center"><img class="media" alt="${esc(path)}" src="${rawUrl(path)}"></div>`
       );
     } else if (VID.has(e)) {
       render(
-        head(path, "video") +
+        head(path, "video", actions) +
           `<div class="preview-body center"><video class="media" controls preload="metadata" src="${rawUrl(path)}"></video></div>`
       );
     } else if (AUD.has(e)) {
       render(
-        head(path, "audio") +
+        head(path, "audio", actions) +
           `<div class="preview-body center"><audio class="media" controls src="${rawUrl(path)}"></audio></div>`
       );
     } else if (PDF.has(e)) {
       render(
-        head(path, "pdf") +
+        head(path, "pdf", actions) +
           `<div class="preview-body"><iframe class="media" src="${rawUrl(path)}"></iframe></div>`
       );
     } else {
@@ -290,11 +435,32 @@ async function showPreview(path, resetScroll) {
       if (!res.ok) throw new Error(res.statusText);
       const html = await res.text();
       const lang = res.headers.get("x-gander-lang") || "text";
-      render(head(path, lang) + `<div class="preview-body">${html}</div>`);
+      render(head(path, lang, actions) + `<div class="preview-body">${html}</div>`);
     }
   } catch (err) {
     render(head(path) + `<div class="preview-body"><p>Could not preview: ${esc(String(err))}</p></div>`);
   }
+}
+
+/* Show the working-tree diff for a file, with a button back to the preview. */
+async function showDiff(path, resetScroll) {
+  const pane = $("preview");
+  state.view = "preview";
+  state.mode = "diff";
+  const keepScroll = resetScroll ? 0 : pane.scrollTop;
+  try {
+    const res = await fetch(`/api/diff?path=${encodeURIComponent(path)}`);
+    if (!res.ok) throw new Error(res.statusText);
+    const html = await res.text();
+    pane.innerHTML =
+      head(path, "diff", '<button class="btn" data-action="file">View file</button>') +
+      `<div class="preview-body">${html}</div>`;
+  } catch (err) {
+    pane.innerHTML =
+      head(path) +
+      `<div class="preview-body"><p>Could not show diff: ${esc(String(err))}</p></div>`;
+  }
+  if (!resetScroll) pane.scrollTop = keepScroll;
 }
 
 /* ---------------------------------------------------------------- boot ---- */
@@ -304,6 +470,7 @@ async function loadTree() {
   if (!res.ok) return;
   const data = await res.json();
   state.files = data.files || [];
+  state.isGit = !!data.is_git;
   $("repo-name").textContent = data.name || "gander";
   document.title = `${data.name || "gander"} · gander`;
   const br = $("repo-branch");
@@ -313,6 +480,7 @@ async function loadTree() {
   } else {
     br.hidden = true;
   }
+  updateChangesButton();
   renderTree();
 }
 
@@ -324,7 +492,51 @@ async function loadMeta() {
   } catch (_) {
     state.meta = null;
   }
-  if (!state.selected) renderHome();
+  if (!state.selected && state.view === "preview") renderHome();
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetch("/api/status");
+    if (res.ok) {
+      const data = await res.json();
+      state.status = new Map((data.files || []).map((f) => [f.path, f]));
+    } else {
+      state.status = new Map();
+    }
+  } catch (_) {
+    state.status = new Map();
+  }
+  updateChangesButton();
+  renderTree();
+  if (state.view === "git") renderGit();
+}
+
+async function loadLog() {
+  try {
+    const res = await fetch("/api/log");
+    if (res.ok) {
+      const data = await res.json();
+      state.log = data.commits || [];
+    } else {
+      state.log = [];
+    }
+  } catch (_) {
+    state.log = [];
+  }
+  if (state.view === "git") renderGit();
+}
+
+function updateChangesButton() {
+  const btn = $("changes-btn");
+  if (!state.isGit) {
+    btn.hidden = true;
+    return;
+  }
+  const n = state.status.size;
+  btn.hidden = false;
+  btn.textContent = n ? `Changes ${n}` : "Changes";
+  btn.classList.toggle("has-changes", n > 0);
 }
 
 function startEvents() {
@@ -343,9 +555,14 @@ function startEvents() {
     try {
       changed = (JSON.parse(ev.data).paths) || [];
     } catch (_) {}
-    await Promise.all([loadTree(), loadMeta()]);
-    if (state.selected && (changed.includes(state.selected) || changed.length === 0))
-      showPreview(state.selected, false);
+    const gitChange = changed.some((p) => p.startsWith(".git/"));
+    await Promise.all([loadTree(), loadStatus(), loadMeta()]);
+    if (state.view === "git") await loadLog();
+    const sel = state.selected;
+    if (sel && (gitChange || changed.includes(sel) || changed.length === 0)) {
+      if (state.mode === "diff") showDiff(sel, false);
+      else showPreview(sel, false);
+    }
   });
   es.addEventListener("error", () => {
     $("status").textContent = "○ reconnecting";
@@ -359,6 +576,18 @@ $("filter").addEventListener("input", (e) => {
 });
 
 document.querySelector(".brand").addEventListener("click", showHome);
+$("changes-btn").addEventListener("click", openGit);
 
-loadTree().then(loadMeta);
+/* One delegated handler for everything rendered into the preview pane. */
+$("preview").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-action]");
+  if (!t) return;
+  const action = t.dataset.action;
+  if (action === "git") openGit();
+  else if (action === "diff" && state.selected) showDiff(state.selected, true);
+  else if (action === "file" && state.selected) showPreview(state.selected, true);
+  else if (action === "select" && t.dataset.path) select(t.dataset.path, "diff");
+});
+
+loadTree().then(loadStatus).then(loadMeta);
 startEvents();

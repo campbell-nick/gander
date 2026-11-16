@@ -112,6 +112,37 @@ void repo_info(const char *root, struct repoinfo *ri);
 /* Serialise the metadata as JSON. */
 void repo_info_json(struct strbuf *out, const struct repoinfo *ri);
 
+/* One entry of `git status --porcelain`. code is the raw two-letter XY code;
+ * status is a normalised word (modified/added/deleted/renamed/copied/
+ * untracked/conflicted/typechange). Untracked directories keep a trailing
+ * slash, so a file inside one can be recognised by its prefix. */
+struct statusent {
+  char path[4096];
+  char code[4];
+  char status[16];
+};
+
+struct statuslist {
+  struct statusent *v;
+  size_t n;
+  size_t cap;
+};
+
+/* Collect the working-tree status. Leaves *sl empty outside a git repo. */
+void repo_status(const char *root, struct statuslist *sl);
+void statuslist_free(struct statuslist *sl);
+
+/* Serialise a status list as a JSON array. */
+void repo_status_json(struct strbuf *out, const struct statuslist *sl);
+
+/* Serialise up to max recent commits as a JSON array. */
+void repo_log_json(const char *root, struct strbuf *out, int max);
+
+/* Render the per-file unified diff for rel as an HTML fragment (GitHub-style
+ * rows with old/new line gutters). Untracked files are shown as all-additions.
+ * Returns 1 when something was rendered, 0 when there is nothing to show. */
+int repo_diff_html(const char *root, const char *rel, struct strbuf *out);
+
 /* -------------------------------------------------------- highlighting --- */
 /* Friendly language name for a path (e.g. "c", "python"), for display. */
 const char *highlight_lang_name(const char *path);

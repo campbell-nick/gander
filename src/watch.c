@@ -133,6 +133,56 @@ static void add_watch_rec(struct watcher *w, const char *rel) {
   closedir(d);
 }
 
+/* Watch the git metadata that changes on commit, stage, checkout or branch
+ * switch, so the UI can refresh its git state. Descends through refs/ and
+ * logs/ but never into objects/ (which is huge and irrelevant here). */
+static void add_git_rec(struct watcher *w, const char *rel) {
+  if (w->nmaps >= MAX_WATCHES)
+    return;
+
+  char dir[4096];
+  snprintf(dir, sizeof dir, "%s/%s", w->root, rel);
+  struct stat st;
+  if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode))
+    return;
+
+  int wd = inotify_add_watch(w->fd, dir,
+                             IN_CLOSE_WRITE | IN_CREATE | IN_DELETE |
+                                 IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB |
+                                 IN_DELETE_SELF | IN_MOVE_SELF);
+  if (wd >= 0)
+    map_put(w, wd, rel);
+
+  DIR *d = opendir(dir);
+  if (!d)
+    return;
+  struct dirent *e;
+  while ((e = readdir(d))) {
+    if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
+      continue;
+    if (strcmp(e->d_name, "objects") == 0)
+      continue;
+    char child[4096];
+    snprintf(child, sizeof child, "%s/%s", rel, e->d_name);
+    if (strlen(child) >= sizeof child - 1)
+      continue;
+    char full[4200];
+    snprintf(full, sizeof full, "%s/%s", w->root, child);
+    struct stat cs;
+    if (stat(full, &cs) == 0 && S_ISDIR(cs.st_mode))
+      add_git_rec(w, child);
+  }
+  closedir(d);
+}
+
+static void add_git_watches(struct watcher *w) {
+  char gitdir[4096];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", w->root);
+  struct stat st;
+  if (stat(gitdir, &st) == 0 && S_ISDIR(st.st_mode))
+    add_git_rec(w, ".git");
+}
+
 struct watcher *watch_new(const char *root) {
   int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
   if (fd < 0)
@@ -142,6 +192,7 @@ struct watcher *watch_new(const char *root) {
   w->fd = fd;
   w->root = xstrdup(root);
   add_watch_rec(w, "");
+  add_git_watches(w);
   return w;
 }
 

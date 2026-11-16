@@ -440,3 +440,402 @@ void repo_info_json(struct strbuf *out, const struct repoinfo *ri) {
   }
   sb_puts(out, "]}");
 }
+
+/* ---------------------------------------------------------------- status -- */
+
+/* Capture a command's stdout into a growable buffer (trailing newlines
+ * trimmed). Returns 1 on exit status 0. */
+static int run_capture_buf(const char *cmd, struct strbuf *out) {
+  FILE *p = popen(cmd, "r");
+  if (!p)
+    return 0;
+  char buf[8192];
+  size_t got;
+  while ((got = fread(buf, 1, sizeof buf, p)) > 0)
+    sb_putn(out, buf, got);
+  int status = pclose(p);
+  while (out->len > 0 && (out->buf[out->len - 1] == '\n' ||
+                          out->buf[out->len - 1] == '\r'))
+    out->buf[--out->len] = '\0';
+  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
+static void normalize_status(const char *xy, char *out, size_t outsz) {
+  char x = xy[0], y = xy[1];
+  const char *s = "modified";
+  if (x == '?' && y == '?')
+    s = "untracked";
+  else if (x == '!' && y == '!')
+    s = "ignored";
+  else if (x == 'U' || y == 'U' || (x == 'A' && y == 'A') ||
+           (x == 'D' && y == 'D'))
+    s = "conflicted";
+  else if (x == 'A' || y == 'A')
+    s = "added";
+  else if (x == 'D' || y == 'D')
+    s = "deleted";
+  else if (x == 'R' || y == 'R')
+    s = "renamed";
+  else if (x == 'C' || y == 'C')
+    s = "copied";
+  else if (x == 'T' || y == 'T')
+    s = "typechange";
+  snprintf(out, outsz, "%s", s);
+}
+
+void statuslist_free(struct statuslist *sl) {
+  free(sl->v);
+  sl->v = NULL;
+  sl->n = sl->cap = 0;
+}
+
+static struct statusent *statuslist_add(struct statuslist *sl) {
+  if (sl->n == sl->cap) {
+    sl->cap = sl->cap ? sl->cap * 2 : 32;
+    sl->v = xrealloc(sl->v, sl->cap * sizeof(*sl->v));
+  }
+  struct statusent *e = &sl->v[sl->n++];
+  memset(e, 0, sizeof *e);
+  return e;
+}
+
+void repo_status(const char *root, struct statuslist *sl) {
+  memset(sl, 0, sizeof *sl);
+
+  char gitdir[4400];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", root);
+  if (!file_exists(gitdir))
+    return;
+
+  char q[4400];
+  shell_quote(root, q, sizeof q);
+  char cmd[5000];
+  snprintf(cmd, sizeof cmd,
+           "git -C %s status --porcelain=v1 -z --untracked-files=normal "
+           "2>/dev/null",
+           q);
+
+  struct strbuf out;
+  sb_init(&out);
+  if (!run_capture_buf(cmd, &out)) {
+    sb_free(&out);
+    return;
+  }
+
+  /* Records are NUL-separated "XY PATH"; a rename/copy is followed by a
+   * second NUL-terminated record holding the original path, which we skip. */
+  size_t i = 0;
+  while (i < out.len) {
+    size_t end = i;
+    while (end < out.len && out.buf[end] != '\0')
+      end++;
+    size_t rlen = end - i;
+    if (rlen >= 3) {
+      const char *rec = out.buf + i;
+      struct statusent *e = statuslist_add(sl);
+      snprintf(e->code, sizeof e->code, "%c%c", rec[0], rec[1]);
+      normalize_status(e->code, e->status, sizeof e->status);
+      size_t plen = rlen - 3;
+      if (plen >= sizeof e->path)
+        plen = sizeof e->path - 1;
+      memcpy(e->path, rec + 3, plen);
+      e->path[plen] = '\0';
+      if ((rec[0] == 'R' || rec[1] == 'R' || rec[0] == 'C' || rec[1] == 'C') &&
+          end + 1 < out.len) {
+        size_t o = end + 1;
+        while (o < out.len && out.buf[o] != '\0')
+          o++;
+        i = o + 1;
+        continue;
+      }
+    }
+    i = end + 1;
+  }
+  sb_free(&out);
+}
+
+void repo_status_json(struct strbuf *out, const struct statuslist *sl) {
+  sb_puts(out, "[");
+  for (size_t i = 0; i < sl->n; i++) {
+    if (i)
+      sb_putc(out, ',');
+    sb_puts(out, "{\"path\":");
+    sb_put_json_string(out, sl->v[i].path);
+    sb_puts(out, ",\"code\":");
+    sb_put_json_string(out, sl->v[i].code);
+    sb_puts(out, ",\"status\":");
+    sb_put_json_string(out, sl->v[i].status);
+    sb_puts(out, "}");
+  }
+  sb_puts(out, "]");
+}
+
+/* ------------------------------------------------------------------ log --- */
+
+void repo_log_json(const char *root, struct strbuf *out, int max) {
+  sb_puts(out, "[");
+
+  char gitdir[4400];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", root);
+  if (!file_exists(gitdir)) {
+    sb_puts(out, "]");
+    return;
+  }
+  if (max < 1)
+    max = 50;
+  if (max > 200)
+    max = 200;
+
+  char q[4400];
+  shell_quote(root, q, sizeof q);
+  char cmd[5200];
+  snprintf(cmd, sizeof cmd,
+           "git -C %s log -n %d "
+           "--format=%%h%%x1f%%an%%x1f%%ar%%x1f%%s%%x1e 2>/dev/null",
+           q, max);
+
+  struct strbuf raw;
+  sb_init(&raw);
+  if (!run_capture_buf(cmd, &raw)) {
+    sb_free(&raw);
+    sb_puts(out, "]");
+    return;
+  }
+
+  size_t i = 0;
+  int first = 1;
+  while (i < raw.len) {
+    while (i < raw.len && (raw.buf[i] == '\n' || raw.buf[i] == '\r'))
+      i++;
+    if (i >= raw.len)
+      break;
+    size_t end = i;
+    while (end < raw.len && raw.buf[end] != '\x1e')
+      end++;
+    if (end > i) {
+      char rec[1400];
+      size_t rl = end - i;
+      if (rl >= sizeof rec)
+        rl = sizeof rec - 1;
+      memcpy(rec, raw.buf + i, rl);
+      rec[rl] = '\0';
+      char *f[4] = {rec, NULL, NULL, NULL};
+      int nf = 1;
+      for (char *p = rec; *p && nf < 4; p++)
+        if (*p == '\x1f') {
+          *p = '\0';
+          f[nf++] = p + 1;
+        }
+      if (nf == 4) {
+        if (!first)
+          sb_putc(out, ',');
+        first = 0;
+        sb_puts(out, "{\"hash\":");
+        sb_put_json_string(out, f[0]);
+        sb_puts(out, ",\"author\":");
+        sb_put_json_string(out, f[1]);
+        sb_puts(out, ",\"when\":");
+        sb_put_json_string(out, f[2]);
+        sb_puts(out, ",\"subject\":");
+        sb_put_json_string(out, f[3]);
+        sb_puts(out, "}");
+      }
+    }
+    i = end + 1;
+  }
+  sb_free(&raw);
+  sb_puts(out, "]");
+}
+
+/* ----------------------------------------------------------------- diff --- */
+
+static void escape_range(struct strbuf *out, const char *s, size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    unsigned char ch = (unsigned char)s[i];
+    if (ch == '&')
+      sb_puts(out, "&amp;");
+    else if (ch == '<')
+      sb_puts(out, "&lt;");
+    else if (ch == '>')
+      sb_puts(out, "&gt;");
+    else
+      sb_putc(out, (char)ch);
+  }
+}
+
+static void diff_row(struct strbuf *out, const char *kind, long oldn, long newn,
+                     const char *text, size_t len) {
+  sb_printf(out, "<tr class=\"%s\"><td class=\"ln\">", kind);
+  if (oldn > 0)
+    sb_printf(out, "%ld", oldn);
+  sb_puts(out, "</td><td class=\"ln\">");
+  if (newn > 0)
+    sb_printf(out, "%ld", newn);
+  sb_puts(out, "</td><td class=\"code\">");
+  escape_range(out, text, len);
+  sb_puts(out, "</td></tr>\n");
+}
+
+/* Render a plain blob (an untracked file) as a series of added lines. */
+static void diff_added_blob(struct strbuf *out, const char *text, size_t len) {
+  long ln = 0;
+  size_t i = 0;
+  while (i < len) {
+    size_t end = i;
+    while (end < len && text[end] != '\n')
+      end++;
+    ln++;
+    /* reconstruct "+line" */
+    struct strbuf line;
+    sb_init(&line);
+    sb_putc(&line, '+');
+    sb_putn(&line, text + i, end - i);
+    diff_row(out, "add", 0, ln, line.buf, line.len);
+    sb_free(&line);
+    i = end + 1;
+  }
+  if (len == 0)
+    (void)ln;
+}
+
+/* Render a unified diff, tracking old/new line numbers from the @@ headers. */
+static void diff_unified(struct strbuf *out, const char *text, size_t len) {
+  long oldn = 0, newn = 0;
+  int in_hunk = 0;
+  size_t i = 0;
+  while (i < len) {
+    size_t end = i;
+    while (end < len && text[end] != '\n')
+      end++;
+    const char *line = text + i;
+    size_t llen = end - i;
+
+    if (llen >= 11 && strncmp(line, "diff --git ", 11) == 0) {
+      in_hunk = 0;
+      diff_row(out, "meta", 0, 0, line, llen);
+    } else if (llen >= 2 && line[0] == '@' && line[1] == '@') {
+      const char *p = line + 2;
+      while (*p == ' ')
+        p++;
+      if (*p == '-') {
+        oldn = atol(p + 1);
+        while (*p && *p != ' ')
+          p++;
+      }
+      while (*p == ' ')
+        p++;
+      if (*p == '+')
+        newn = atol(p + 1);
+      in_hunk = 1;
+      diff_row(out, "hunk", 0, 0, line, llen);
+    } else if (!in_hunk) {
+      diff_row(out, "meta", 0, 0, line, llen);
+    } else if (llen && line[0] == '+') {
+      diff_row(out, "add", 0, newn++, line, llen);
+    } else if (llen && line[0] == '-') {
+      diff_row(out, "del", oldn++, 0, line, llen);
+    } else if (llen && line[0] == '\\') {
+      diff_row(out, "meta", 0, 0, line, llen);
+    } else if (llen && line[0] == ' ') {
+      diff_row(out, "ctx", oldn++, newn++, line, llen);
+    } else {
+      diff_row(out, "meta", 0, 0, line, llen);
+    }
+
+    if (end >= len)
+      break;
+    i = end + 1;
+  }
+}
+
+int repo_diff_html(const char *root, const char *rel, struct strbuf *out) {
+  char gitdir[4400];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", root);
+  if (!file_exists(gitdir))
+    return 0;
+
+  char q[4400], qrel[4400];
+  shell_quote(root, q, sizeof q);
+  shell_quote(rel, qrel, sizeof qrel);
+
+  /* Is this path untracked? (scoped to the one path, so --all stays cheap) */
+  int untracked = 0;
+  {
+    char cmd[12000];
+    snprintf(cmd, sizeof cmd,
+             "git -C %s status --porcelain=v1 -z --untracked-files=all -- %s "
+             "2>/dev/null",
+             q, qrel);
+    struct strbuf st;
+    sb_init(&st);
+    if (run_capture_buf(cmd, &st) && st.len >= 2 && st.buf[0] == '?' &&
+        st.buf[1] == '?')
+      untracked = 1;
+    sb_free(&st);
+  }
+
+  struct strbuf diff;
+  sb_init(&diff);
+  int have = 0;
+
+  if (untracked) {
+    char full[4400];
+    snprintf(full, sizeof full, "%s/%s", root, rel);
+    FILE *f = fopen(full, "rb");
+    if (f) {
+      const size_t MAX = 512 * 1024;
+      char buf[8192];
+      size_t got;
+      while ((got = fread(buf, 1, sizeof buf, f)) > 0) {
+        if (diff.len + got > MAX) {
+          sb_putn(&diff, buf, MAX - diff.len);
+          break;
+        }
+        sb_putn(&diff, buf, got);
+      }
+      fclose(f);
+      have = 1;
+    }
+  } else {
+    char cmd[12000];
+    snprintf(cmd, sizeof cmd,
+             "git -C %s diff --no-color --no-ext-diff -U3 HEAD -- %s 2>/dev/null",
+             q, qrel);
+    if (run_capture_buf(cmd, &diff) && diff.len)
+      have = 1;
+    if (!have) { /* no HEAD yet, or an unborn branch */
+      snprintf(cmd, sizeof cmd,
+               "git -C %s diff --no-color --no-ext-diff -U3 --cached -- %s "
+               "2>/dev/null",
+               q, qrel);
+      if (run_capture_buf(cmd, &diff) && diff.len)
+        have = 1;
+    }
+  }
+
+  if (!have) {
+    sb_free(&diff);
+    return 0;
+  }
+
+  /* Detect a binary diff notice so the UI can style it plainly. */
+  int binary = 0;
+  for (size_t i = 0; i + 7 <= diff.len; i++)
+    if (strncmp(diff.buf + i, "Binary ", 7) == 0) {
+      binary = 1;
+      break;
+    }
+
+  sb_puts(out, "<div class=\"diff\"><table class=\"diff-table\">");
+  if (binary) {
+    diff_row(out, "meta", 0, 0, "Binary file - no textual diff.", 31);
+  } else if (untracked) {
+    diff_added_blob(out, diff.buf ? diff.buf : "", diff.len);
+  } else {
+    diff_unified(out, diff.buf ? diff.buf : "", diff.len);
+  }
+  sb_puts(out, "</table></div>");
+
+  sb_free(&diff);
+  return 1;
+}

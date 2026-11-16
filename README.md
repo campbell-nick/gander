@@ -32,6 +32,8 @@ same minimal C, a different view of your work.
 - **Repo home card**: branch, latest tag (as the release), CI config, license,
   commit and file counts, a language breakdown and the last commit — all read
   from disk, never the network.
+- **Git panel**: working-tree changes grouped as staged/changes/untracked with
+  status colours in the tree, a recent-commit log, and a per-file unified diff.
 - **Live reload**: edits on disk update the page instantly, keeping your place.
 - **Offline by construction**: bound to `127.0.0.1`, strict CSP, all assets
   bundled.
@@ -87,6 +89,9 @@ everything, just without automatic refresh.
 | `/` | the bundled UI |
 | `/api/tree` | `{name, root, is_git, branch, files:[...]}` |
 | `/api/meta` | repo metadata: branch, tags, license, CI, languages, last commit |
+| `/api/status` | working-tree changes from `git status --porcelain` |
+| `/api/log` | recent commits (hash, author, when, subject) |
+| `/api/diff?path=` | a unified diff of one file against `HEAD` |
 | `/api/md?path=` | Markdown rendered to an HTML fragment |
 | `/api/code?path=` | source highlighted to an HTML code blob |
 | `/raw/<path>` | a file from the previewed directory (correct MIME, byte ranges) |
@@ -100,6 +105,11 @@ tables, horizontal rules, and inline emphasis, strong, strikethrough, code
 spans, links, images and autolinks. Relative links and images are rewritten to
 `/raw/<path>` so they resolve against the repository. Fenced code blocks are
 syntax-highlighted when they name a language we know.
+
+README badges are usually remote images. Since `gander` never touches the
+network, a remote image is shown as a small chip carrying its alt text instead
+of a broken image; a linked badge such as `[![CI](badge.svg)](url)` still links
+out, and relative images render normally.
 
 ## Theme
 
@@ -121,7 +131,7 @@ one block; a light palette is included there, commented out.
 - **M2** live reload (inotify → SSE) — *done*
 - **M3** Markdown → HTML with inline relative media — *done*
 - **M4** code preview, syntax highlighting, line numbers — *done*
-- **M5** git panel: status colours, branch, log, per-file diff
+- **M5** git panel: status colours, branch, log, per-file diff — *done*
 - **M6** repo home card — *done*; search, themes, `--app` webview window
 
 ## License

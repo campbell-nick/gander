@@ -88,6 +88,45 @@ static void url_decode(const char *in, char *out, size_t outsz) {
   out[o] = '\0';
 }
 
+/* Extract a query parameter (URL-decoded) by name. Returns 1 if present. */
+static int query_param(const char *query, const char *key, char *out,
+                       size_t outsz) {
+  char qcopy[4096];
+  snprintf(qcopy, sizeof qcopy, "%s", query);
+  char *save = qcopy, *tok;
+  while ((tok = strsep(&save, "&"))) {
+    char k[256], v[4096];
+    if (sscanf(tok, "%255[^=]=%4095s", k, v) == 2 && strcmp(k, key) == 0) {
+      url_decode(v, out, outsz);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* A repo-relative path is safe when it is non-empty, not absolute, and has no
+ * "." or ".." component. Used where the target may no longer exist on disk
+ * (e.g. the diff of a deleted file), so realpath cannot help. */
+static int rel_is_safe(const char *rel) {
+  if (!rel[0] || rel[0] == '/')
+    return 0;
+  const char *p = rel;
+  while (*p) {
+    const char *slash = strchr(p, '/');
+    size_t n = slash ? (size_t)(slash - p) : strlen(p);
+    if (n == 0)
+      return 0;
+    if (n == 1 && p[0] == '.')
+      return 0;
+    if (n == 2 && p[0] == '.' && p[1] == '.')
+      return 0;
+    if (!slash)
+      break;
+    p = slash + 1;
+  }
+  return 1;
+}
+
 /* Find a header value by name in a raw request buffer. Returns a pointer into
  * the buffer (not NUL-terminated) and stores its length, or NULL. */
 static const char *find_header(const char *buf, const char *name, size_t *len) {
@@ -313,6 +352,51 @@ static void api_meta(struct server *s, struct conn *c) {
   sb_free(&inner);
   resp_buf(c, "application/json; charset=utf-8", &b);
   sb_free(&b);
+}
+
+static void api_status(struct server *s, struct conn *c) {
+  struct statuslist sl;
+  repo_status(s->root_real, &sl);
+
+  char gitdir[4200];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", s->root_real);
+  struct stat st;
+
+  struct strbuf b;
+  sb_init(&b);
+  sb_printf(&b, "{\"is_git\":%s,\"files\":",
+            (stat(gitdir, &st) == 0) ? "true" : "false");
+  repo_status_json(&b, &sl);
+  sb_puts(&b, "}");
+  resp_buf(c, "application/json; charset=utf-8", &b);
+  sb_free(&b);
+  statuslist_free(&sl);
+}
+
+static void api_log(struct server *s, struct conn *c) {
+  struct strbuf b;
+  sb_init(&b);
+  sb_puts(&b, "{\"commits\":");
+  repo_log_json(s->root_real, &b, 50);
+  sb_puts(&b, "}");
+  resp_buf(c, "application/json; charset=utf-8", &b);
+  sb_free(&b);
+}
+
+static void api_diff(struct server *s, struct conn *c, const char *rel) {
+  if (!rel_is_safe(rel)) {
+    resp_error(c, 404, "Not Found");
+    return;
+  }
+  struct strbuf html;
+  sb_init(&html);
+  if (!repo_diff_html(s->root_real, rel, &html)) {
+    sb_free(&html);
+    resp_error(c, 404, "No diff");
+    return;
+  }
+  resp_buf(c, "text/html; charset=utf-8", &html);
+  sb_free(&html);
 }
 
 static void api_md(struct server *s, struct conn *c, const char *rel) {  char full[4096];
@@ -576,25 +660,21 @@ static void handle_request(struct server *s, struct conn *c) {
     api_meta(s, c);
     return;
   }
+  if (strcmp(decoded, "/api/status") == 0) {
+    api_status(s, c);
+    return;
+  }
+  if (strcmp(decoded, "/api/log") == 0) {
+    api_log(s, c);
+    return;
+  }
   if (strcmp(decoded, "/api/events") == 0) {
     api_events(c);
     return;
   }
   if (strcmp(decoded, "/api/md") == 0) {
-    char rel[4096] = "", pv[4096];
-    char qcopy[4096];
-    snprintf(qcopy, sizeof qcopy, "%s", query);
-    char *save = qcopy, *tok;
-    while ((tok = strsep(&save, "&"))) {
-      char key[256], val[4096];
-      if (sscanf(tok, "%255[^=]=%4095s", key, val) == 2 &&
-          strcmp(key, "path") == 0) {
-        url_decode(val, pv, sizeof pv);
-        snprintf(rel, sizeof rel, "%s", pv);
-        break;
-      }
-    }
-    if (!rel[0]) {
+    char rel[4096] = "";
+    if (!query_param(query, "path", rel, sizeof rel) || !rel[0]) {
       resp_error(c, 400, "Bad Request");
       return;
     }
@@ -602,24 +682,21 @@ static void handle_request(struct server *s, struct conn *c) {
     return;
   }
   if (strcmp(decoded, "/api/code") == 0) {
-    char rel[4096] = "", pv[4096];
-    char qcopy[4096];
-    snprintf(qcopy, sizeof qcopy, "%s", query);
-    char *save = qcopy, *tok;
-    while ((tok = strsep(&save, "&"))) {
-      char key[256], val[4096];
-      if (sscanf(tok, "%255[^=]=%4095s", key, val) == 2 &&
-          strcmp(key, "path") == 0) {
-        url_decode(val, pv, sizeof pv);
-        snprintf(rel, sizeof rel, "%s", pv);
-        break;
-      }
-    }
-    if (!rel[0]) {
+    char rel[4096] = "";
+    if (!query_param(query, "path", rel, sizeof rel) || !rel[0]) {
       resp_error(c, 400, "Bad Request");
       return;
     }
     api_code(s, c, rel);
+    return;
+  }
+  if (strcmp(decoded, "/api/diff") == 0) {
+    char rel[4096] = "";
+    if (!query_param(query, "path", rel, sizeof rel) || !rel[0]) {
+      resp_error(c, 400, "Bad Request");
+      return;
+    }
+    api_diff(s, c, rel);
     return;
   }
   if (strncmp(decoded, "/raw/", 5) == 0) {
