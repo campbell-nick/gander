@@ -160,6 +160,6 @@ void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
 /* Run the HTTP server until interrupted. root is the directory being
  * previewed; web_root holds the bundled UI assets. */
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, const char *token);
+               int port, int do_open, const char *token, int do_watch);
 
 #endif /* GANDER_H */

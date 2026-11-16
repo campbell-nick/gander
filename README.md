@@ -64,6 +64,7 @@ gander [path] [options]
   --web-root <dir>  directory holding the bundled UI assets
   --token <str>     require this token to open the UI
   --no-open         do not launch a browser
+  --no-watch        disable live reload
   -h, --help        show help and exit
   -V, --version     show the version and exit
 ```
@@ -80,7 +81,7 @@ preview when it changes, preserving your selection, expanded folders and scroll
 position. Media is cache-busted so an updated GIF or image actually reloads.
 
 Live reload is Linux-only for now; on other platforms `gander` still serves
-everything, just without automatic refresh.
+everything, just without automatic refresh. Use `--no-watch` to disable it.
 
 ## Endpoints
 

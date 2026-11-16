@@ -24,6 +24,7 @@ static void usage(FILE *out) {
           "  --web-root <dir>  directory holding the bundled UI assets\n"
           "  --token <str>     require this token to open the UI\n"
           "  --no-open         do not launch a browser\n"
+          "  --no-watch        disable live reload\n"
           "  -h, --help        show this help and exit\n"
           "  -V, --version     show the version and exit\n"
           "\n"
@@ -97,6 +98,7 @@ int main(int argc, char **argv) {
   const char *token = NULL;
   int port = 0;
   int do_open = 1;
+  int do_watch = 1;
 
   for (int i = 1; i < argc; i++) {
     const char *a = argv[i];
@@ -124,6 +126,8 @@ int main(int argc, char **argv) {
       token = a + 8;
     } else if (strcmp(a, "--no-open") == 0) {
       do_open = 0;
+    } else if (strcmp(a, "--no-watch") == 0) {
+      do_watch = 0;
     } else if (a[0] == '-' && a[1] != '\0') {
       fprintf(stderr, "gander: unknown option: %s\n", a);
       usage(stderr);
@@ -145,5 +149,5 @@ int main(int argc, char **argv) {
   char web_root[PATH_MAX + 64];
   find_web_root(web_override, web_root, sizeof web_root);
 
-  return server_run(path, web_root, host, port, do_open, token);
+  return server_run(path, web_root, host, port, do_open, token, do_watch);
 }

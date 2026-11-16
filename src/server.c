@@ -833,7 +833,7 @@ static void open_browser(const char *host, int port, const char *token) {
 /* --------------------------------------------------------------- run -------- */
 
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, const char *token) {
+               int port, int do_open, const char *token, int do_watch) {
   struct server s;
   memset(&s, 0, sizeof s);
   s.token = token;
@@ -880,18 +880,19 @@ int server_run(const char *root, const char *web_root, const char *host,
   int actual = ntohs(sa.sin_port);
   set_nonblock(lfd);
 
+  if (do_open)
+    open_browser(host, actual, token);
+
+  s.w = do_watch ? watch_new(s.root_real) : NULL;
+
   printf("gander %s\n", GANDER_VERSION);
   printf("  root:   %s\n", s.root_real);
   printf("  url:    http://%s:%d/%s\n", host, actual,
          (token && token[0]) ? "?token=***" : "");
-  printf("  watch:  %s\n", "inotify");
+  printf("  watch:  %s\n",
+         s.w ? "inotify" : (do_watch ? "unavailable" : "disabled"));
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
-
-  if (do_open)
-    open_browser(host, actual, token);
-
-  s.w = watch_new(s.root_real);
 
   signal(SIGINT, on_signal);
   signal(SIGTERM, on_signal);
