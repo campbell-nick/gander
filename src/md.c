@@ -66,6 +66,13 @@ static int has_scheme(const char *u) {
   return *p == ':';
 }
 
+/* A remote http(s) URL: offline we cannot fetch it, so images that point at
+ * one are rendered as a badge chip rather than a broken <img>. */
+static int is_remote(const char *u, size_t n) {
+  return (n >= 7 && strncasecmp(u, "http://", 7) == 0) ||
+         (n >= 8 && strncasecmp(u, "https://", 8) == 0);
+}
+
 /* Collapse "." and ".." segments in a relative path. */
 static void normalize(const char *in, char *out, size_t outsz) {
   const char *parts[256];
@@ -193,6 +200,21 @@ static void inline_md(struct strbuf *o, const char *s, size_t n,
           const char *sp = memchr(url, ' ', urllen);
           if (sp)
             urllen = (size_t)(sp - url);
+          if (is_remote(url, urllen)) {
+            /* Offline: show a badge chip using the alt text instead of an
+             * <img> the browser cannot fetch. A span (not a link) so that a
+             * surrounding [![badge](img)](url) link stays valid HTML. */
+            sb_puts(o, "<span class=\"badge\" title=\"");
+            esc(o, url, urllen);
+            sb_puts(o, "\">");
+            if (altlen)
+              esc(o, alt, altlen);
+            else
+              sb_puts(o, "image");
+            sb_puts(o, "</span>");
+            i = end + 1;
+            continue;
+          }
           sb_puts(o, "<img src=\"");
           char *u = xstrndup(url, urllen);
           put_attr_url(o, u, base);
@@ -208,9 +230,25 @@ static void inline_md(struct strbuf *o, const char *s, size_t n,
 
     /* link */
     if (c == '[') {
+      /* Find the matching ']', skipping nested [...] pairs (so that a linked
+       * image such as [![badge](img)](url) keeps the whole image as its text). */
       size_t close = i + 1;
-      while (close < n && s[close] != ']')
+      int depth = 0;
+      while (close < n) {
+        char cc = s[close];
+        if (cc == '\\' && close + 1 < n) {
+          close += 2;
+          continue;
+        }
+        if (cc == '[') {
+          depth++;
+        } else if (cc == ']') {
+          if (depth == 0)
+            break;
+          depth--;
+        }
         close++;
+      }
       if (close < n && close + 1 < n && s[close + 1] == '(') {
         size_t end = close + 2;
         while (end < n && s[end] != ')')
