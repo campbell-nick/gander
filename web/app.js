@@ -19,6 +19,7 @@ const state = {
   expanded: new Set(),
   selected: null,
   filter: "",
+  meta: null,
 };
 
 /* ------------------------------------------------------------- helpers --- */
@@ -36,6 +37,17 @@ function esc(s) {
 function rawUrl(path) {
   const enc = path.split("/").map(encodeURIComponent).join("/");
   return `/raw/${enc}?v=${Date.now()}`;
+}
+
+function formatBytes(n) {
+  if (!n) return "0 B";
+  const u = ["B", "KiB", "MiB", "GiB"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
 }
 
 /* ------------------------------------------------------------ the tree --- */
@@ -147,6 +159,83 @@ function head(path, meta) {
   );
 }
 
+/* GitHub-style repository home card, built entirely from local data. */
+function renderHome() {
+  const pane = $("preview");
+  const m = state.meta;
+  if (!m) {
+    pane.innerHTML =
+      '<div class="welcome"><h1>gander</h1>' +
+      "<p>Select a file to preview it. Markdown, images, GIFs, video and code " +
+      "are all rendered locally — nothing leaves your machine.</p></div>";
+    return;
+  }
+
+  const name = m.name || "gander";
+  const chips = [];
+  if (m.is_git && m.branch)
+    chips.push(`<span class="chip branch">${esc(m.branch)}</span>`);
+  if (m.latest_tag)
+    chips.push(`<span class="chip">🏷 <b>${esc(m.latest_tag)}</b>${
+      m.tag_count > 1 ? ` <span>+${m.tag_count - 1}</span>` : ""}</span>`);
+  if (m.ci && m.ci.length)
+    chips.push(`<span class="chip ok"><span class="dot"></span>CI: ${esc(m.ci.join(", "))}</span>`);
+  else
+    chips.push(`<span class="chip">no CI configured</span>`);
+  if (m.license) chips.push(`<span class="chip">⚖ ${esc(m.license)}</span>`);
+  if (m.is_git) {
+    chips.push(`<span class="chip">${m.commits.toLocaleString()} commits</span>`);
+    chips.push(
+      `<span class="chip">${m.dirty
+        ? `<span class="dot" style="color:var(--yellow)"></span>${m.changes} uncommitted`
+        : `<span class="dot" style="color:var(--green)"></span>clean`}</span>`
+    );
+  }
+  chips.push(`<span class="chip">${m.files.toLocaleString()} files · ${formatBytes(m.total_bytes)}</span>`);
+
+  /* language bar */
+  const langs = (m.languages || []).filter((l) => l.bytes > 0);
+  const total = langs.reduce((a, l) => a + l.bytes, 0) || 1;
+  let bar = "", legend = "";
+  for (const l of langs) {
+    const pct = (l.bytes / total) * 100;
+    bar += `<span style="width:${pct.toFixed(2)}%;background:${l.color}" title="${esc(l.name)} ${pct.toFixed(1)}%"></span>`;
+    legend += `<span><i style="background:${l.color}"></i>${esc(l.name)} <b>${pct.toFixed(1)}%</b></span>`;
+  }
+
+  let last = "";
+  if (m.is_git && m.last && m.last.hash) {
+    last =
+      '<div class="lastcommit">' +
+      `<span class="hash">${esc(m.last.hash)}</span>` +
+      `<span class="subject">${esc(m.last.subject)}</span>` +
+      `<span class="who">${esc(m.last.author)} · ${esc(m.last.when)}</span>` +
+      "</div>";
+  }
+
+  const desc = m.description
+    ? `<p class="repo-desc">${esc(m.description)}</p>`
+    : "";
+
+  pane.innerHTML =
+    `<div class="preview-head"><span class="path">${esc(name)}</span>` +
+    `<span class="meta">${m.is_git ? "git repository" : "folder"}</span></div>` +
+    '<div class="preview-body"><div class="repo-home">' +
+    `<h1 class="repo-h1">${esc(name)}</h1>` +
+    desc +
+    `<div class="chips">${chips.join("")}</div>` +
+    (bar ? `<div class="langbar">${bar}</div><div class="langlegend">${legend}</div>` : "") +
+    last +
+    '<p class="hint">Select a file from the tree to preview it. Edits on disk appear here automatically.</p>' +
+    "</div></div>";
+}
+
+function showHome() {
+  state.selected = null;
+  renderTree();
+  renderHome();
+}
+
 function select(path) {
   state.selected = path;
   // make sure the tree reveals the selection
@@ -227,6 +316,17 @@ async function loadTree() {
   renderTree();
 }
 
+async function loadMeta() {
+  try {
+    const res = await fetch("/api/meta");
+    if (!res.ok) return;
+    state.meta = await res.json();
+  } catch (_) {
+    state.meta = null;
+  }
+  if (!state.selected) renderHome();
+}
+
 function startEvents() {
   if (!("EventSource" in window)) {
     $("status").textContent = "○ offline";
@@ -243,7 +343,7 @@ function startEvents() {
     try {
       changed = (JSON.parse(ev.data).paths) || [];
     } catch (_) {}
-    await loadTree();
+    await Promise.all([loadTree(), loadMeta()]);
     if (state.selected && (changed.includes(state.selected) || changed.length === 0))
       showPreview(state.selected, false);
   });
@@ -258,5 +358,7 @@ $("filter").addEventListener("input", (e) => {
   renderTree();
 });
 
-loadTree();
+document.querySelector(".brand").addEventListener("click", showHome);
+
+loadTree().then(loadMeta);
 startEvents();

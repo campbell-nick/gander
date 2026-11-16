@@ -294,8 +294,28 @@ static void api_tree(struct server *s, struct conn *c) {
   filelist_free(&fl);
 }
 
-static void api_md(struct server *s, struct conn *c, const char *rel) {
-  char full[4096];
+static void api_meta(struct server *s, struct conn *c) {
+  struct repoinfo ri;
+  repo_info(s->root_real, &ri);
+  struct strbuf b;
+  sb_init(&b);
+  sb_puts(&b, "{\"name\":");
+  sb_put_json_string(&b, base_name(s->root_real));
+  sb_puts(&b, ",\"root\":");
+  sb_put_json_string(&b, s->root_real);
+  sb_puts(&b, ",");
+  /* splice the repo object's fields in after "name"/"root" */
+  struct strbuf inner;
+  sb_init(&inner);
+  repo_info_json(&inner, &ri);
+  /* inner starts with '{'; drop it */
+  sb_puts(&b, inner.buf + 1);
+  sb_free(&inner);
+  resp_buf(c, "application/json; charset=utf-8", &b);
+  sb_free(&b);
+}
+
+static void api_md(struct server *s, struct conn *c, const char *rel) {  char full[4096];
   if (!resolve_under(s->root_real, rel, full, sizeof full)) {
     resp_error(c, 404, "Not Found");
     return;
@@ -550,6 +570,10 @@ static void handle_request(struct server *s, struct conn *c) {
   }
   if (strcmp(decoded, "/api/tree") == 0) {
     api_tree(s, c);
+    return;
+  }
+  if (strcmp(decoded, "/api/meta") == 0) {
+    api_meta(s, c);
     return;
   }
   if (strcmp(decoded, "/api/events") == 0) {

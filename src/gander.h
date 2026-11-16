@@ -75,8 +75,44 @@ int watch_take(struct watcher *w, char ***paths, size_t *n);
 void md_to_html(struct strbuf *out, const char *text, size_t len,
                 const char *base);
 
-/* -------------------------------------------------------- highlighting --- */
+/* ---------------------------------------------------------------- repo --- */
 
+struct langent {
+  char name[32];
+  char color[16];
+  long bytes;
+};
+
+struct repoinfo {
+  int is_git;
+  char branch[256];
+  char remote[512];
+  int dirty;
+  int changes;
+  char last_hash[16];
+  char last_subject[300];
+  char last_author[128];
+  char last_rel[64];
+  long commits;
+  char latest_tag[64];
+  int tag_count;
+  char license[64];
+  int ci_count;
+  char ci_names[8][160];
+  char description[400];
+  long files;
+  long total_bytes;
+  struct langent langs[8];
+  int nlangs;
+};
+
+/* Gather repo metadata from disk and (if present) the local git CLI. */
+void repo_info(const char *root, struct repoinfo *ri);
+
+/* Serialise the metadata as JSON. */
+void repo_info_json(struct strbuf *out, const struct repoinfo *ri);
+
+/* -------------------------------------------------------- highlighting --- */
 /* Friendly language name for a path (e.g. "c", "python"), for display. */
 const char *highlight_lang_name(const char *path);
 
