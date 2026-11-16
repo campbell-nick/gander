@@ -602,13 +602,10 @@ void md_to_html(struct strbuf *o, const char *text, size_t len,
       size_t langlen = 0;
       while (langlen < ill && il[langlen] != ' ' && il[langlen] != '\t')
         langlen++;
-      sb_puts(o, "<pre><code");
-      if (langlen) {
-        sb_puts(o, " class=\"language-");
-        esc(o, il, langlen);
-        sb_puts(o, "\"");
-      }
-      sb_puts(o, ">");
+
+      /* collect the block, then highlight it */
+      struct strbuf code;
+      sb_init(&code);
       i++;
       while (i < L.n) {
         size_t cn = strlen(L.v[i]);
@@ -616,13 +613,31 @@ void md_to_html(struct strbuf *o, const char *text, size_t len,
         char c2;
         if (is_fence(L.v[i], cn, &ci2, &c2, &r2) && c2 == fch && r2 >= run)
           break;
-        esc(o, L.v[i], cn);
-        sb_putc(o, '\n');
+        sb_putn(&code, L.v[i], cn);
+        sb_putc(&code, '\n');
         i++;
       }
       if (i < L.n)
         i++; /* closing fence */
+
+      sb_puts(o, "<pre><code");
+      if (langlen) {
+        sb_puts(o, " class=\"language-");
+        esc(o, il, langlen);
+        sb_puts(o, "\"");
+      }
+      sb_puts(o, ">");
+      if (langlen) {
+        char lang[64];
+        size_t ll = langlen < sizeof lang - 1 ? langlen : sizeof lang - 1;
+        memcpy(lang, il, ll);
+        lang[ll] = '\0';
+        highlight_lang_to_html(o, code.buf ? code.buf : "", code.len, lang);
+      } else {
+        esc(o, code.buf ? code.buf : "", code.len);
+      }
       sb_puts(o, "</code></pre>");
+      sb_free(&code);
       continue;
     }
 

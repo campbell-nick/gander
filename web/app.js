@@ -147,15 +147,6 @@ function head(path, meta) {
   );
 }
 
-function codeHtml(text) {
-  const lines = text.replace(/\n$/, "").split("\n");
-  return (
-    '<pre class="code">' +
-    lines.map((l) => `<span class="line">${esc(l) || " "}</span>`).join("\n") +
-    "</pre>"
-  );
-}
-
 function select(path) {
   state.selected = path;
   // make sure the tree reveals the selection
@@ -206,22 +197,11 @@ async function showPreview(path, resetScroll) {
           `<div class="preview-body"><iframe class="media" src="${rawUrl(path)}"></iframe></div>`
       );
     } else {
-      const res = await fetch(rawUrl(path));
+      const res = await fetch(`/api/code?path=${encodeURIComponent(path)}`);
       if (!res.ok) throw new Error(res.statusText);
-      let text = await res.text();
-      const MAX = 2 * 1024 * 1024;
-      let truncated = false;
-      if (text.length > MAX) {
-        text = text.slice(0, MAX);
-        truncated = true;
-      }
-      const size = res.headers.get("content-length");
-      render(
-        head(path, `${size ? Number(size).toLocaleString() + " B" : ""}`) +
-          `<div class="preview-body">${codeHtml(text)}` +
-          (truncated ? '<div class="truncated">… truncated for preview</div>' : "") +
-          `</div>`
-      );
+      const html = await res.text();
+      const lang = res.headers.get("x-gander-lang") || "text";
+      render(head(path, lang) + `<div class="preview-body">${html}</div>`);
     }
   } catch (err) {
     render(head(path) + `<div class="preview-body"><p>Could not preview: ${esc(String(err))}</p></div>`);

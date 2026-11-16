@@ -27,7 +27,8 @@ same minimal C, a different view of your work.
   images and GIFs shown inline.
 - **Media preview**: images, animated GIFs, SVG, `<video>` (with byte-range
   seeking) and audio.
-- **Code and text** preview with line numbers.
+- **Code and text** preview with GitHub-style syntax highlighting and a
+  line-number gutter.
 - **Live reload**: edits on disk update the page instantly, keeping your place.
 - **Offline by construction**: bound to `127.0.0.1`, strict CSP, all assets
   bundled.
@@ -83,6 +84,7 @@ everything, just without automatic refresh.
 | `/` | the bundled UI |
 | `/api/tree` | `{name, root, is_git, branch, files:[...]}` |
 | `/api/md?path=` | Markdown rendered to an HTML fragment |
+| `/api/code?path=` | source highlighted to an HTML code blob |
 | `/raw/<path>` | a file from the previewed directory (correct MIME, byte ranges) |
 | `/api/events` | Server-Sent Events for live reload |
 
@@ -92,7 +94,8 @@ A deliberate subset, not full CommonMark: ATX and setext headings, paragraphs,
 fenced code, block quotes, nested ordered/unordered lists, GFM task lists, GFM
 tables, horizontal rules, and inline emphasis, strong, strikethrough, code
 spans, links, images and autolinks. Relative links and images are rewritten to
-`/raw/<path>` so they resolve against the repository.
+`/raw/<path>` so they resolve against the repository. Fenced code blocks are
+syntax-highlighted when they name a language we know.
 
 ## Security
 
@@ -107,7 +110,7 @@ spans, links, images and autolinks. Relative links and images are rewritten to
 - **M1** server, file tree, media preview — *done*
 - **M2** live reload (inotify → SSE) — *done*
 - **M3** Markdown → HTML with inline relative media — *done*
-- **M4** code preview, syntax highlighting, line numbers
+- **M4** code preview, syntax highlighting, line numbers — *done*
 - **M5** git panel: status colours, branch, log, per-file diff
 - **M6** repo home card, search, themes, `--app` webview window
 

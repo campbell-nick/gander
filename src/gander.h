@@ -75,6 +75,20 @@ int watch_take(struct watcher *w, char ***paths, size_t *n);
 void md_to_html(struct strbuf *out, const char *text, size_t len,
                 const char *base);
 
+/* -------------------------------------------------------- highlighting --- */
+
+/* Friendly language name for a path (e.g. "c", "python"), for display. */
+const char *highlight_lang_name(const char *path);
+
+/* Tokenise source text into HTML spans, GitHub-style. */
+void highlight_to_html(struct strbuf *out, const char *text, size_t len,
+                       const char *path);
+
+/* Tokenise source by fence language name (e.g. "python"); falls back to
+ * plain escaped text for unknown languages. */
+void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
+                            const char *lang);
+
 /* -------------------------------------------------------------- server --- */
 /* Run the HTTP server until interrupted. root is the directory being
  * previewed; web_root holds the bundled UI assets. */

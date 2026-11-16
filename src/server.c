@@ -330,6 +330,88 @@ static void api_md(struct server *s, struct conn *c, const char *rel) {
   sb_free(&raw);
 }
 
+/* Build a GitHub-style code blob: a line-number gutter beside the
+ * highlighted source. The whole blob is returned as an HTML fragment. */
+static void api_code(struct server *s, struct conn *c, const char *rel) {
+  char full[4096];
+  if (!resolve_under(s->root_real, rel, full, sizeof full)) {
+    resp_error(c, 404, "Not Found");
+    return;
+  }
+  FILE *f = fopen(full, "rb");
+  if (!f) {
+    resp_error(c, 404, "Not Found");
+    return;
+  }
+  const size_t MAX = 512 * 1024;
+  struct strbuf raw;
+  sb_init(&raw);
+  char buf[8192];
+  size_t got;
+  int truncated = 0;
+  while ((got = fread(buf, 1, sizeof buf, f)) > 0) {
+    if (raw.len + got > MAX) {
+      sb_putn(&raw, buf, MAX - raw.len);
+      truncated = 1;
+      break;
+    }
+    sb_putn(&raw, buf, got);
+  }
+  fclose(f);
+
+  /* binary? */
+  int binary = 0;
+  for (size_t i = 0; i < raw.len && i < 8000; i++)
+    if (raw.buf[i] == '\0') {
+      binary = 1;
+      break;
+    }
+
+  struct strbuf body;
+  sb_init(&body);
+
+  if (binary) {
+    sb_puts(&body,
+            "<p class=\"notice\">Binary file — no preview available.</p>");
+  } else {
+    size_t lines = 1;
+    for (size_t i = 0; i < raw.len; i++)
+      if (raw.buf[i] == '\n')
+        lines++;
+    if (raw.len && raw.buf[raw.len - 1] == '\n')
+      lines--;
+
+    sb_puts(&body, "<div class=\"codeblob\"><div class=\"gutter\"><pre>");
+    for (size_t i = 1; i <= lines; i++) {
+      if (i > 1)
+        sb_putc(&body, '\n');
+      sb_printf(&body, "%zu", i);
+    }
+    sb_puts(&body, "</pre></div><div class=\"codecol\"><pre class=\"highlight\">");
+    highlight_to_html(&body, raw.buf ? raw.buf : "", raw.len, rel);
+    sb_puts(&body, "</pre></div></div>");
+    if (truncated)
+      sb_puts(&body, "<p class=\"notice\">… truncated for preview</p>");
+  }
+
+  const char *lang = highlight_lang_name(rel);
+
+  /* response, with a couple of display headers */
+  sb_puts(&c->out, "HTTP/1.1 200 OK\r\n");
+  sb_puts(&c->out, "Content-Type: text/html; charset=utf-8\r\n");
+  sb_printf(&c->out, "Content-Length: %zu\r\n", body.len);
+  sb_printf(&c->out, "X-Gander-Lang: %s\r\n", lang);
+  sb_puts(&c->out, "Cache-Control: no-store\r\n");
+  sb_puts(&c->out, "X-Content-Type-Options: nosniff\r\n");
+  sb_printf(&c->out, "Content-Security-Policy: %s\r\n", CSP);
+  sb_puts(&c->out, "Connection: close\r\n\r\n");
+  sb_putn(&c->out, body.buf, body.len);
+  c->state = C_WRITE;
+
+  sb_free(&body);
+  sb_free(&raw);
+}
+
 static void api_raw(struct server *s, struct conn *c, const char *rel,
                     const char *range_hdr) {
   char full[4096];
@@ -493,6 +575,27 @@ static void handle_request(struct server *s, struct conn *c) {
       return;
     }
     api_md(s, c, rel);
+    return;
+  }
+  if (strcmp(decoded, "/api/code") == 0) {
+    char rel[4096] = "", pv[4096];
+    char qcopy[4096];
+    snprintf(qcopy, sizeof qcopy, "%s", query);
+    char *save = qcopy, *tok;
+    while ((tok = strsep(&save, "&"))) {
+      char key[256], val[4096];
+      if (sscanf(tok, "%255[^=]=%4095s", key, val) == 2 &&
+          strcmp(key, "path") == 0) {
+        url_decode(val, pv, sizeof pv);
+        snprintf(rel, sizeof rel, "%s", pv);
+        break;
+      }
+    }
+    if (!rel[0]) {
+      resp_error(c, 400, "Bad Request");
+      return;
+    }
+    api_code(s, c, rel);
     return;
   }
   if (strncmp(decoded, "/raw/", 5) == 0) {
