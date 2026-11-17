@@ -38,7 +38,8 @@ static void usage(FILE *out) {
           "\n"
           "Settings can also live in ~/.config/gander/config (override with\n"
           "--config or $GANDER_CONFIG); a style.css beside it is layered over\n"
-          "the bundled theme. Command-line options win.\n",
+          "the bundled theme, and a [paths] section names repositories so\n"
+          "`gander <name>` opens one. Command-line options win.\n",
           GANDER_VERSION);
 }
 
@@ -193,12 +194,21 @@ int main(int argc, char **argv) {
   }
 
   if (!is_dir(path)) {
-    if (is_file(path)) {
-      fprintf(stderr, "gander: %s is a file, not a directory\n", path);
-    } else {
-      fprintf(stderr, "gander: no such directory: %s\n", path);
+    /* Not a directory on disk - maybe it names a [paths] shortcut. */
+    const char *named = config_lookup_path(&cfg, path);
+    if (!named) {
+      if (is_file(path))
+        fprintf(stderr, "gander: %s is a file, not a directory\n", path);
+      else
+        fprintf(stderr, "gander: no such directory: %s\n", path);
+      return 1;
     }
-    return 1;
+    if (!is_dir(named)) {
+      fprintf(stderr, "gander: path '%s' -> %s is not a directory\n", path,
+              named);
+      return 1;
+    }
+    path = named;
   }
 
   char web_root[PATH_MAX + 64];

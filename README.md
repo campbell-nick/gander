@@ -111,7 +111,18 @@ watch     = commit        # commit (default), all or off
 web-root  = /usr/share/gander/web
 token     = hunter2       # require this token to open the UI
 style     = /etc/gander/style.css
+
+[paths]                   # named shortcuts: `gander <name>` opens them
+Nexus     = ~/Projects/Nexus
+Illution  = ~/Projects/Illution
 ```
+
+### Named paths
+
+The `[paths]` section maps a short name to a repository, so `gander Nexus`
+opens it from anywhere. Names are matched case-insensitively (`gander nexus`
+works too) and a leading `~` expands to `$HOME`. A path that exists on disk
+still wins, so `gander .` and `gander ./Nexus` behave exactly as before.
 
 ### User stylesheet
 

@@ -20,6 +20,12 @@
  *   token       string       require this token to open the UI
  *   style       path         a stylesheet to layer over the bundled one
  *
+ * A [paths] section names repositories, so `gander Nexus` opens the one you
+ * configured (matched case-insensitively, with a leading ~ expanded to $HOME):
+ *
+ *   [paths]
+ *   Nexus = ~/Projects/Nexus
+ *
  * Command-line options override anything set here. */
 #include "gander.h"
 
@@ -100,6 +106,50 @@ static void apply_kv(struct gander_config *cfg, const char *path, int lineno,
   }
 }
 
+/* Expand a leading ~ or ~/ to $HOME; anything else is copied verbatim. */
+static void expand_tilde(const char *in, char *out, size_t outsz) {
+  if (in[0] == '~' && (in[1] == '\0' || in[1] == '/')) {
+    const char *home = getenv("HOME");
+    if (home && home[0]) {
+      snprintf(out, outsz, "%s%s", home, in + 1);
+      return;
+    }
+  }
+  snprintf(out, outsz, "%s", in);
+}
+
+/* Record one `name = path` line from the [paths] section. A later definition
+ * of the same name wins, so the last one in the file is the one used. */
+static void config_add_path(struct gander_config *cfg, const char *name,
+                            const char *val, const char *file, int lineno) {
+  if (!name[0]) {
+    fprintf(stderr, "gander: %s:%d: empty path name (ignored)\n", file, lineno);
+    return;
+  }
+  for (int i = 0; i < cfg->npaths; i++) {
+    if (strcasecmp(cfg->paths[i].name, name) == 0) {
+      expand_tilde(val, cfg->paths[i].path, sizeof cfg->paths[i].path);
+      return;
+    }
+  }
+  if (cfg->npaths >= GANDER_MAX_PATHS) {
+    fprintf(stderr, "gander: %s:%d: too many paths (max %d)\n", file, lineno,
+            GANDER_MAX_PATHS);
+    return;
+  }
+  struct gander_path *p = &cfg->paths[cfg->npaths++];
+  snprintf(p->name, sizeof p->name, "%s", name);
+  expand_tilde(val, p->path, sizeof p->path);
+}
+
+const char *config_lookup_path(const struct gander_config *cfg,
+                               const char *name) {
+  for (int i = 0; i < cfg->npaths; i++)
+    if (strcasecmp(cfg->paths[i].name, name) == 0)
+      return cfg->paths[i].path;
+  return NULL;
+}
+
 void config_load(struct gander_config *cfg, const char *explicit_path) {
   char path[4096] = "";
   if (explicit_path && explicit_path[0]) {
@@ -135,6 +185,7 @@ void config_load(struct gander_config *cfg, const char *explicit_path) {
     return; /* a missing config file is not an error */
   snprintf(cfg->path, sizeof cfg->path, "%s", path);
 
+  char section[64] = "";
   char line[8192];
   int lineno = 0;
   while (fgets(line, sizeof line, f)) {
@@ -142,6 +193,20 @@ void config_load(struct gander_config *cfg, const char *explicit_path) {
     char *s = trim(line);
     if (!*s || *s == '#' || *s == ';')
       continue;
+
+    /* A [section] header switches the context for the keys that follow. */
+    if (*s == '[') {
+      char *close = strchr(s, ']');
+      if (!close) {
+        fprintf(stderr, "gander: %s:%d: malformed section header\n", path,
+                lineno);
+        continue;
+      }
+      *close = '\0';
+      snprintf(section, sizeof section, "%s", trim(s + 1));
+      continue;
+    }
+
     char *eq = strchr(s, '=');
     if (!eq) {
       fprintf(stderr, "gander: %s:%d: expected key = value\n", path, lineno);
@@ -164,7 +229,13 @@ void config_load(struct gander_config *cfg, const char *explicit_path) {
       val[vl - 1] = '\0';
       val++;
     }
-    apply_kv(cfg, path, lineno, key, val);
+    if (strcasecmp(section, "paths") == 0)
+      config_add_path(cfg, key, val, path, lineno);
+    else if (section[0])
+      fprintf(stderr, "gander: %s:%d: unknown section '[%s]' (ignored)\n",
+              path, lineno, section);
+    else
+      apply_kv(cfg, path, lineno, key, val);
   }
   fclose(f);
 }

@@ -208,6 +208,16 @@ void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
 
 /* User configuration, read from an optional config file. Every field has a
  * built-in default; command-line options override anything set here. */
+
+#define GANDER_MAX_PATHS 32
+
+/* A named shortcut from the config file's [paths] section, so
+ * `Nexus = ~/Projects/Nexus` lets `gander Nexus` (in any case) open it. */
+struct gander_path {
+  char name[64];
+  char path[4096];
+};
+
 struct gander_config {
   int port;            /* 0 = pick a free port */
   int do_open;         /* launch a browser on start */
@@ -217,6 +227,8 @@ struct gander_config {
   char token[512];
   char css[4096];      /* user stylesheet layered over the bundled one, or "" */
   char path[4096];     /* config file actually read, or "" */
+  struct gander_path paths[GANDER_MAX_PATHS]; /* [paths] shortcuts */
+  int npaths;
 };
 
 /* Fill cfg with built-in defaults (including the default user stylesheet). */
@@ -226,6 +238,11 @@ void config_init(struct gander_config *cfg);
  * $XDG_CONFIG_HOME/gander/config, else $HOME/.config/gander/config. A missing
  * file is not an error; a malformed line is warned about and skipped. */
 void config_load(struct gander_config *cfg, const char *explicit_path);
+
+/* Look up a named path from the [paths] section, case-insensitively. Returns
+ * the stored path, or NULL if the name is unknown. */
+const char *config_lookup_path(const struct gander_config *cfg,
+                               const char *name);
 
 /* -------------------------------------------------------------- server --- */
 /* Run the HTTP server until interrupted. root is the directory being
