@@ -23,7 +23,7 @@ all: $(BIN)
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
-%.o: %.c src/gander.h
+%.o: %.c src/gander.h src/logo.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 run: $(BIN)

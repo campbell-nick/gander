@@ -1,5 +1,6 @@
 /* main.c - command line handling for gander. */
 #include "gander.h"
+#include "logo.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -39,6 +40,13 @@ static void usage(FILE *out) {
           "--config or $GANDER_CONFIG); a style.css beside it is layered over\n"
           "the bundled theme. Command-line options win.\n",
           GANDER_VERSION);
+}
+
+/* --version prints the goose, then the version line. */
+static void print_version(void) {
+  for (size_t i = 0; i < GANDER_LOGO_LINES; i++)
+    puts(GANDER_LOGO[i]);
+  printf("\ngander %s\n", GANDER_VERSION);
 }
 
 static int parse_watch(const char *v) {
@@ -134,7 +142,7 @@ int main(int argc, char **argv) {
       usage(stdout);
       return 0;
     } else if (strcmp(a, "-V") == 0 || strcmp(a, "--version") == 0) {
-      printf("gander %s\n", GANDER_VERSION);
+      print_version();
       return 0;
     } else if (strcmp(a, "--config") == 0 && i + 1 < argc) {
       i++; /* already applied above */
