@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAX_CONNS 256
@@ -870,6 +871,35 @@ static void note_no_git(void) {
   fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
 }
 
+/* A goose never says the same goodbye twice. */
+static void farewell(void) {
+  static const char *const lines[] = {
+      "Have a nice day.",
+      "See you next time.",
+      "Finished?",
+      "Happy now?",
+      "Fix again?",
+      "Honk.",
+      "Fly safe.",
+      "Off you waddle.",
+      "Gander out.",
+      "See you, space goose.",
+      "Keep it local.",
+      "Nothing left to see here.",
+      "Waddle you do now?",
+      "Take care.",
+      "Fare thee well, gentle traveller.",
+      "Hie thee hence, and tarry not.",
+      "Wend thy way in peace.",
+      "Go forth; the road is thine.",
+      "Anon we part, as all good things must.",
+      "Farewell, dear friend; till we meet anon.",
+  };
+  size_t n = sizeof lines / sizeof lines[0];
+  srand((unsigned)time(NULL) ^ (unsigned)getpid());
+  printf("\ngander: %s\n", lines[(unsigned)rand() % n]);
+}
+
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
                const char *user_css) {
@@ -1062,7 +1092,7 @@ int server_run(const char *root, const char *web_root, const char *host,
     }
   }
 
-  printf("\ngander: bye\n");
+  farewell();
   while (s.conns)
     conn_free(&s, s.conns);
   watch_free(s.w);
