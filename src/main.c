@@ -42,11 +42,22 @@ static void usage(FILE *out) {
           GANDER_VERSION);
 }
 
-/* --version prints the goose, then the version line. */
+/* --version prints the goose, then a short banner. */
 static void print_version(void) {
   for (size_t i = 0; i < GANDER_LOGO_LINES; i++)
     puts(GANDER_LOGO[i]);
-  printf("\ngander %s\n", GANDER_VERSION);
+
+  /* Colour only when a terminal is watching; a pipe stays plain. */
+  int color = isatty(STDOUT_FILENO);
+  const char *blue = color ? "\033[38;2;88;166;255m" : "";  /* #58a6ff */
+  const char *dim = color ? "\033[38;2;139;148;158m" : "";  /* #8b949e */
+  const char *off = color ? "\033[0m" : "";
+
+  printf("\n%s%sgander %s%s\n", blue, color ? "\033[1m" : "",
+         GANDER_VERSION, off);
+  printf("%sa small offline previewer for a local folder or git repo%s\n",
+         dim, off);
+  printf("%srun 'gander --help' to see the options%s\n", dim, off);
 }
 
 static int parse_watch(const char *v) {
