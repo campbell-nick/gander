@@ -28,6 +28,7 @@ struct wmap {
 
 struct watcher {
   int fd;
+  int scope;
   char *root;
   struct wmap *maps;
   size_t nmaps, cmaps;
@@ -76,8 +77,30 @@ static void map_del(struct watcher *w, int wd) {
     }
 }
 
+/* In commit mode only history/ref changes matter: a commit, a tag, a branch
+ * switch or a fetch. Everything else under .git - most importantly the index,
+ * which `git status` rewrites - is ignored, so a status poll can never feed
+ * back into another refresh. */
+static int commit_path(const char *rel) {
+  if (strncmp(rel, ".git/", 5) != 0)
+    return 0;
+  const char *p = rel + 5;
+  if (strncmp(p, "refs/", 5) == 0 || strncmp(p, "logs/", 5) == 0)
+    return 1;
+  static const char *files[] = {"HEAD",         "packed-refs", "ORIG_HEAD",
+                                "MERGE_HEAD",   "FETCH_HEAD",  "CHERRY_PICK_HEAD",
+                                "REVERT_HEAD",  "COMMIT_EDITMSG", "TAG_EDITMSG",
+                                NULL};
+  for (int i = 0; files[i]; i++)
+    if (strcmp(p, files[i]) == 0)
+      return 1;
+  return 0;
+}
+
 static void add_changed(struct watcher *w, const char *rel) {
   if (!rel || !rel[0])
+    return;
+  if (w->scope == WATCH_COMMIT && !commit_path(rel))
     return;
   for (size_t i = 0; i < w->nchanged; i++)
     if (strcmp(w->changed[i], rel) == 0)
@@ -183,16 +206,42 @@ static void add_git_watches(struct watcher *w) {
     add_git_rec(w, ".git");
 }
 
-struct watcher *watch_new(const char *root) {
+/* Commit mode: watch only the refs and reflogs, plus the top of .git for
+ * HEAD and packed-refs. Nothing under the working tree or the index is
+ * watched, so editing files (and the index rewrites that follow a status
+ * poll) never trigger a refresh. */
+static void add_git_commit_watches(struct watcher *w) {
+  char gitdir[4096];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", w->root);
+  struct stat st;
+  if (stat(gitdir, &st) != 0 || !S_ISDIR(st.st_mode))
+    return;
+
+  int wd = inotify_add_watch(w->fd, gitdir,
+                             IN_CLOSE_WRITE | IN_CREATE | IN_DELETE |
+                                 IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB |
+                                 IN_DELETE_SELF | IN_MOVE_SELF);
+  if (wd >= 0)
+    map_put(w, wd, ".git");
+  add_git_rec(w, ".git/refs");
+  add_git_rec(w, ".git/logs");
+}
+
+struct watcher *watch_new(const char *root, int scope) {
   int fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
   if (fd < 0)
     return NULL;
   struct watcher *w = xmalloc(sizeof *w);
   memset(w, 0, sizeof *w);
   w->fd = fd;
+  w->scope = scope;
   w->root = xstrdup(root);
-  add_watch_rec(w, "");
-  add_git_watches(w);
+  if (scope == WATCH_COMMIT) {
+    add_git_commit_watches(w);
+  } else {
+    add_watch_rec(w, "");
+    add_git_watches(w);
+  }
   return w;
 }
 
@@ -251,6 +300,12 @@ int watch_take(struct watcher *w, char ***paths, size_t *n) {
     return 0;
   if (now_ms() - w->last_ms < DEBOUNCE_MS)
     return 0;
+  if (w->nchanged == 0) {
+    /* everything this round was filtered out (e.g. the index in commit
+     * mode); drop it silently rather than waking every client. */
+    w->dirty = 0;
+    return 0;
+  }
   *paths = w->changed;
   *n = w->nchanged;
   w->changed = NULL;
@@ -265,8 +320,9 @@ struct watcher {
   int unused;
 };
 
-struct watcher *watch_new(const char *root) {
+struct watcher *watch_new(const char *root, int scope) {
   (void)root;
+  (void)scope;
   return NULL;
 }
 void watch_free(struct watcher *w) { (void)w; }

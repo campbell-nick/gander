@@ -219,14 +219,16 @@ function head(path, meta, actions) {
 }
 
 /* GitHub-style repository home card, built entirely from local data. */
-function renderHome() {
+function renderHome(resetScroll = true) {
   const pane = $("preview");
+  const keep = resetScroll ? 0 : pane.scrollTop;
   const m = state.meta;
   if (!m) {
     pane.innerHTML =
       '<div class="welcome"><h1>gander</h1>' +
       "<p>Select a file to preview it. Markdown, images, GIFs, video and code " +
       "are all rendered locally — nothing leaves your machine.</p></div>";
+    pane.scrollTop = keep;
     return;
   }
 
@@ -289,12 +291,15 @@ function renderHome() {
     "</div>" +
     (m.readme ? '<section class="readme-card" id="home-readme"></section>' : "") +
     "</div>";
-  if (m.readme) loadHomeReadme(m.readme);
+  if (m.readme) loadHomeReadme(m.readme, keep);
+  pane.scrollTop = keep;
 }
 
-/* Render the README below the home card, the way a repo landing page does. */
+/* Render the README below the home card, the way a repo landing page does.
+ * keep is the scroll offset to restore once the README is in place, so a
+ * refresh (e.g. after a commit) does not jump to the top. */
 let homeReadmeToken = 0;
-async function loadHomeReadme(path) {
+async function loadHomeReadme(path, keep = 0) {
   const token = ++homeReadmeToken;
   let html;
   try {
@@ -310,6 +315,8 @@ async function loadHomeReadme(path) {
   el.innerHTML =
     `<div class="readme-head">${esc(path)}</div>` +
     `<article class="markdown">${html}</article>`;
+  const pane = $("preview");
+  if (pane) pane.scrollTop = keep;
 }
 
 function showHome() {
@@ -515,7 +522,7 @@ async function loadMeta() {
   } catch (_) {
     state.meta = null;
   }
-  if (!state.selected && state.view === "preview") renderHome();
+  if (!state.selected && state.view === "preview") renderHome(false);
 }
 
 async function loadStatus() {

@@ -34,7 +34,8 @@ same minimal C, a different view of your work.
   rendered README below — all read from disk, never the network.
 - **Git panel**: working-tree changes grouped as staged/changes/untracked with
   status colours in the tree, a recent-commit log, and a per-file unified diff.
-- **Live reload**: edits on disk update the page instantly, keeping your place.
+- **Live reload**: refresh only when you commit (or switch branch/tag/fetch),
+  keeping your place; `--watch all` also refreshes as you edit files.
 - **Offline by construction**: bound to `127.0.0.1`, strict CSP, all assets
   bundled.
 
@@ -64,7 +65,8 @@ gander [path] [options]
   --web-root <dir>  directory holding the bundled UI assets
   --token <str>     require this token to open the UI
   --no-open         do not launch a browser
-  --no-watch        disable live reload
+  --watch <mode>    what live reload reacts to: commit (default), all or off
+  --no-watch        disable live reload (same as --watch off)
   -h, --help        show help and exit
   -V, --version     show the version and exit
 ```
@@ -74,14 +76,26 @@ The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 
 ## Live reload
 
-`gander` watches the previewed directory recursively with `inotify`, debounces
-bursts of changes (~120 ms), and pushes them to the page over Server-Sent
-Events (`/api/events`). The page refetches the tree and re-renders the current
-preview when it changes, preserving your selection, expanded folders and scroll
+`gander` watches the previewed directory with `inotify`, debounces bursts of
+changes (~120 ms), and pushes them to the page over Server-Sent Events
+(`/api/events`). The page refetches the tree and re-renders the current preview
+when it changes, preserving your selection, expanded folders and scroll
 position. Media is cache-busted so an updated GIF or image actually reloads.
 
+By default it refreshes **only when the git history changes** — a commit, a tag,
+a branch switch or a fetch (`.git/HEAD`, `refs/`, `logs/` and friends). Editing
+or saving files does not refresh the page, so it stays put while you work.
+`--watch all` restores the old behaviour (refresh on every file change);
+`--watch off` (or `--no-watch`) turns live reload off entirely. In a plain
+folder with no repository there is nothing to commit, so `commit` mode falls
+back to watching files.
+
+All git commands run with `GIT_OPTIONAL_LOCKS=0`, so `git status` never rewrites
+the index — otherwise that write would be seen as a change and the page would
+refresh in a loop.
+
 Live reload is Linux-only for now; on other platforms `gander` still serves
-everything, just without automatic refresh. Use `--no-watch` to disable it.
+everything, just without automatic refresh.
 
 ## Endpoints
 

@@ -833,7 +833,14 @@ static void open_browser(const char *host, int port, const char *token) {
 /* --------------------------------------------------------------- run -------- */
 
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, const char *token, int do_watch) {
+               int port, int do_open, const char *token, int watch_scope) {
+  /* Never let git take its optional locks. Without this, `git status` (which
+   * we run to build the tree badges and the home card) refreshes and rewrites
+   * .git/index, the watcher sees that as a change, the page refetches status,
+   * and the two feed each other - the page blinks and scroll jumps to the
+   * top. GIT_OPTIONAL_LOCKS=0 tells git to skip those optional index writes. */
+  setenv("GIT_OPTIONAL_LOCKS", "0", 1);
+
   struct server s;
   memset(&s, 0, sizeof s);
   s.token = token;
@@ -883,14 +890,29 @@ int server_run(const char *root, const char *web_root, const char *host,
   if (do_open)
     open_browser(host, actual, token);
 
-  s.w = do_watch ? watch_new(s.root_real) : NULL;
+  /* A plain folder has nothing to commit, so commit-only watching would never
+   * fire. Fall back to watching files there; there is no `git status` to feed
+   * back, so it cannot loop. */
+  int eff_scope = watch_scope;
+  if (watch_scope == WATCH_COMMIT) {
+    char gd[4200];
+    snprintf(gd, sizeof gd, "%s/.git", s.root_real);
+    struct stat gst;
+    if (stat(gd, &gst) != 0)
+      eff_scope = WATCH_ALL;
+  }
+
+  s.w = eff_scope != WATCH_OFF ? watch_new(s.root_real, eff_scope) : NULL;
 
   printf("gander %s\n", GANDER_VERSION);
   printf("  root:   %s\n", s.root_real);
   printf("  url:    http://%s:%d/%s\n", host, actual,
          (token && token[0]) ? "?token=***" : "");
-  printf("  watch:  %s\n",
-         s.w ? "inotify" : (do_watch ? "unavailable" : "disabled"));
+  if (s.w)
+    printf("  watch:  inotify (%s)\n",
+           eff_scope == WATCH_COMMIT ? "commit" : "all files");
+  else
+    printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
 

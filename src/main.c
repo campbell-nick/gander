@@ -24,12 +24,26 @@ static void usage(FILE *out) {
           "  --web-root <dir>  directory holding the bundled UI assets\n"
           "  --token <str>     require this token to open the UI\n"
           "  --no-open         do not launch a browser\n"
-          "  --no-watch        disable live reload\n"
+          "  --watch <mode>    what live reload reacts to: commit (default),\n"
+          "                    all (every file change) or off\n"
+          "  --no-watch        disable live reload (same as --watch off)\n"
           "  -h, --help        show this help and exit\n"
           "  -V, --version     show the version and exit\n"
           "\n"
-          "Live reload is on by default; edits to watched files refresh the UI.\n",
+          "By default the UI refreshes only when you commit (or switch branch,\n"
+          "tag or fetch); use --watch all to also refresh as you edit files.\n",
           GANDER_VERSION);
+}
+
+static int parse_watch(const char *v) {
+  if (strcmp(v, "off") == 0 || strcmp(v, "none") == 0)
+    return WATCH_OFF;
+  if (strcmp(v, "all") == 0 || strcmp(v, "files") == 0)
+    return WATCH_ALL;
+  if (strcmp(v, "commit") == 0 || strcmp(v, "git") == 0)
+    return WATCH_COMMIT;
+  fprintf(stderr, "gander: unknown watch mode: %s (using commit)\n", v);
+  return WATCH_COMMIT;
 }
 
 static int is_dir(const char *p) {
@@ -98,7 +112,7 @@ int main(int argc, char **argv) {
   const char *token = NULL;
   int port = 0;
   int do_open = 1;
-  int do_watch = 1;
+  int watch_scope = WATCH_COMMIT;
 
   for (int i = 1; i < argc; i++) {
     const char *a = argv[i];
@@ -127,7 +141,11 @@ int main(int argc, char **argv) {
     } else if (strcmp(a, "--no-open") == 0) {
       do_open = 0;
     } else if (strcmp(a, "--no-watch") == 0) {
-      do_watch = 0;
+      watch_scope = WATCH_OFF;
+    } else if (strcmp(a, "--watch") == 0 && i + 1 < argc) {
+      watch_scope = parse_watch(argv[++i]);
+    } else if (strncmp(a, "--watch=", 8) == 0) {
+      watch_scope = parse_watch(a + 8);
     } else if (a[0] == '-' && a[1] != '\0') {
       fprintf(stderr, "gander: unknown option: %s\n", a);
       usage(stderr);
@@ -149,5 +167,5 @@ int main(int argc, char **argv) {
   char web_root[PATH_MAX + 64];
   find_web_root(web_override, web_root, sizeof web_root);
 
-  return server_run(path, web_root, host, port, do_open, token, do_watch);
+  return server_run(path, web_root, host, port, do_open, token, watch_scope);
 }

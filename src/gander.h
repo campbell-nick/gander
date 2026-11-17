@@ -68,9 +68,23 @@ void filelist_sort(struct filelist *fl);
 
 struct watcher;
 
-/* Start watching root recursively. Returns NULL when watching is unavailable
- * (e.g. inotify is missing); the caller should carry on without it. */
-struct watcher *watch_new(const char *root);
+/* What live reload reacts to.
+ *
+ *   WATCH_OFF     no watching at all.
+ *   WATCH_COMMIT  only git history changes: a commit, a tag, a branch switch
+ *                 or a fetch. Working-tree edits are ignored, so the page
+ *                 stays put while you edit and only refreshes when you commit.
+ *   WATCH_ALL     any watched file change (edits, saves, new files, ...). */
+enum watch_scope {
+  WATCH_OFF = 0,
+  WATCH_COMMIT = 1,
+  WATCH_ALL = 2,
+};
+
+/* Start watching root. scope selects what counts as a change. Returns NULL
+ * when watching is unavailable (e.g. inotify is missing); the caller should
+ * carry on without it. */
+struct watcher *watch_new(const char *root, int scope);
 void watch_free(struct watcher *w);
 
 /* File descriptor to poll for readability, or -1. */
@@ -194,6 +208,6 @@ void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
 /* Run the HTTP server until interrupted. root is the directory being
  * previewed; web_root holds the bundled UI assets. */
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, const char *token, int do_watch);
+               int port, int do_open, const char *token, int watch_scope);
 
 #endif /* GANDER_H */
