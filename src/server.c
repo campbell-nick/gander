@@ -894,7 +894,7 @@ static void farewell(void) {
       "Go forth; the road is thine.",
       "Anon we part, as all good things must.",
       "Farewell, dear friend; till we meet anon.",
-      "Your mileage may vary.",
+      "Your mileage may vary, and as you wish.",
       "Make it yours.",
   };
   size_t n = sizeof lines / sizeof lines[0];
