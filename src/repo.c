@@ -84,17 +84,27 @@ static void strip_md_inline(const char *in, char *out, size_t outsz) {
   out[o] = '\0';
 }
 
-static void read_readme_desc(const char *root, char *out, size_t outsz) {
-  const char *names[] = {"README.md", "README.markdown", "README", "readme.md"};
-  char path[4200] = "";
+static void find_readme(const char *root, char *out, size_t outsz) {
+  static const char *names[] = {"README.md",  "README.markdown", "README.rst",
+                                "README.txt", "README",          "readme.md",
+                                "Readme.md"};
+  out[0] = '\0';
+  char path[4200];
   for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
     snprintf(path, sizeof path, "%s/%s", root, names[i]);
-    if (file_exists(path))
-      break;
-    path[0] = '\0';
+    if (file_exists(path)) {
+      snprintf(out, outsz, "%s", names[i]);
+      return;
+    }
   }
-  if (!path[0])
+}
+
+static void read_readme_desc(const char *root, const char *name, char *out,
+                             size_t outsz) {
+  if (!name[0])
     return;
+  char path[4200];
+  snprintf(path, sizeof path, "%s/%s", root, name);
 
   FILE *f = fopen(path, "r");
   if (!f)
@@ -117,8 +127,12 @@ static void read_readme_desc(const char *root, char *out, size_t outsz) {
         break;
       continue;
     }
+    /* Skip anything before the prose: headings, quotes, tables, fences, raw
+     * HTML (e.g. a centred logo) and image/badge lines. */
     if (!started && (*p == '#' || *p == '=' || *p == '>' || *p == '|' ||
-                     strncmp(p, "```", 3) == 0))
+                     *p == '<' || strncmp(p, "```", 3) == 0 ||
+                     (*p == '!' && p[1] == '[') ||
+                     (*p == '[' && p[1] == '!' && p[2] == '[')))
       continue;
     if (!started) {
       started = 1;
@@ -310,7 +324,8 @@ void repo_info(const char *root, struct repoinfo *ri) {
   scan_languages(root, ri);
   detect_license(root, ri->license, sizeof ri->license);
   detect_ci(root, ri);
-  read_readme_desc(root, ri->description, sizeof ri->description);
+  find_readme(root, ri->readme, sizeof ri->readme);
+  read_readme_desc(root, ri->readme, ri->description, sizeof ri->description);
 
   if (!ri->is_git)
     return;
@@ -397,6 +412,8 @@ void repo_info_json(struct strbuf *out, const struct repoinfo *ri) {
   sb_put_json_string(out, ri->remote);
   sb_puts(out, ",\"description\":");
   sb_put_json_string(out, ri->description);
+  sb_puts(out, ",\"readme\":");
+  sb_put_json_string(out, ri->readme);
   sb_puts(out, ",\"license\":");
   sb_put_json_string(out, ri->license);
 

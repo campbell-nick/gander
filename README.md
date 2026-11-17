@@ -30,8 +30,8 @@ same minimal C, a different view of your work.
 - **Code and text** preview with GitHub-style syntax highlighting and a
   line-number gutter.
 - **Repo home card**: branch, latest tag (as the release), CI config, license,
-  commit and file counts, a language breakdown and the last commit — all read
-  from disk, never the network.
+  commit and file counts, a language breakdown, the last commit and the
+  rendered README below — all read from disk, never the network.
 - **Git panel**: working-tree changes grouped as staged/changes/untracked with
   status colours in the tree, a recent-commit log, and a per-file unified diff.
 - **Live reload**: edits on disk update the page instantly, keeping your place.

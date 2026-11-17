@@ -132,6 +132,7 @@ struct repoinfo {
   char license[64];
   int ci_count;
   char ci_names[8][160];
+  char readme[256];
   char description[400];
   long files;
   long total_bytes;

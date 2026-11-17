@@ -286,7 +286,30 @@ function renderHome() {
     (bar ? `<div class="langbar">${bar}</div><div class="langlegend">${legend}</div>` : "") +
     last +
     '<p class="hint">Select a file from the tree to preview it. Edits on disk appear here automatically.</p>' +
-    "</div></div>";
+    "</div>" +
+    (m.readme ? '<section class="readme-card" id="home-readme"></section>' : "") +
+    "</div>";
+  if (m.readme) loadHomeReadme(m.readme);
+}
+
+/* Render the README below the home card, the way a repo landing page does. */
+let homeReadmeToken = 0;
+async function loadHomeReadme(path) {
+  const token = ++homeReadmeToken;
+  let html;
+  try {
+    const res = await fetch(`/api/md?path=${encodeURIComponent(path)}`);
+    if (!res.ok) return;
+    html = await res.text();
+  } catch (_) {
+    return;
+  }
+  if (token !== homeReadmeToken) return;
+  const el = document.getElementById("home-readme");
+  if (!el) return;
+  el.innerHTML =
+    `<div class="readme-head">${esc(path)}</div>` +
+    `<article class="markdown">${html}</article>`;
 }
 
 function showHome() {
@@ -581,12 +604,27 @@ $("changes-btn").addEventListener("click", openGit);
 /* One delegated handler for everything rendered into the preview pane. */
 $("preview").addEventListener("click", (e) => {
   const t = e.target.closest("[data-action]");
-  if (!t) return;
-  const action = t.dataset.action;
-  if (action === "git") openGit();
-  else if (action === "diff" && state.selected) showDiff(state.selected, true);
-  else if (action === "file" && state.selected) showPreview(state.selected, true);
-  else if (action === "select" && t.dataset.path) select(t.dataset.path, "diff");
+  if (t) {
+    const action = t.dataset.action;
+    if (action === "git") openGit();
+    else if (action === "diff" && state.selected) showDiff(state.selected, true);
+    else if (action === "file" && state.selected) showPreview(state.selected, true);
+    else if (action === "select" && t.dataset.path) select(t.dataset.path, "diff");
+    return;
+  }
+  /* A relative link in Markdown points at /raw/<path>; preview it here rather
+   * than navigating away to the raw file. */
+  const a = e.target.closest("a[href^='/raw/']");
+  if (a) {
+    e.preventDefault();
+    let p = a.getAttribute("href").slice("/raw/".length);
+    const cut = p.search(/[#?]/);
+    if (cut >= 0) p = p.slice(0, cut);
+    try {
+      p = p.split("/").map(decodeURIComponent).join("/");
+    } catch (_) {}
+    if (p) select(p);
+  }
 });
 
 loadTree().then(loadStatus).then(loadMeta);
