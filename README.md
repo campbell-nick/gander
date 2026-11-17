@@ -53,11 +53,19 @@ make
 ./gander .
 ```
 
-Install (binary + UI assets):
+## Install
+
+`make install` places the binary in `$PREFIX/bin` and the UI assets in
+`$PREFIX/share/gander/web` (found automatically at runtime). The recommended
+setup is a per-user install into `~/.local`:
 
 ```sh
-sudo make install PREFIX=/usr/local
+make
+make install PREFIX=$HOME/.local
 ```
+
+For system-wide installs, packaging, uninstall and troubleshooting, see
+[docs/install.md](docs/install.md).
 
 ## Usage
 
