@@ -68,7 +68,10 @@ For system-wide installs, packaging, uninstall and troubleshooting, see
 ## Usage
 
 ```
-gander [path] [options]
+gander <path>        preview the repository at <path>
+gander <name>        preview a name from the config's [paths]
+gander current       preview the current directory
+gander               show this help
 
   --port <n>        port to listen on (default: pick a free one)
   --host <addr>     address to bind (default: 127.0.0.1)
@@ -83,7 +86,8 @@ gander [path] [options]
 ```
 
 `path` must be a git repository — a `.git` directory, or a `.git` file for a
-linked worktree. Given a plain folder, gander prints a line and exits.
+linked worktree. Given a plain folder, gander prints a line and exits. Use
+`current` (or `.`) to preview the directory you are in.
 
 The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 `<exe-dir>/web`, `<exe-dir>/../share/gander/web`, then `./web`.

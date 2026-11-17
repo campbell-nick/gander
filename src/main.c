@@ -17,7 +17,11 @@ static void usage(FILE *out) {
   fprintf(out,
           "gander %s - preview a local git repository, offline.\n"
           "\n"
-          "Usage: gander [path] [options]\n"
+          "Usage:\n"
+          "  gander <path>        preview the repository at <path>\n"
+          "  gander <name>        preview a name from the config's [paths]\n"
+          "  gander current       preview the current directory\n"
+          "  gander               show this help\n"
           "\n"
           "Options:\n"
           "  --port <n>        port to listen on (default: pick a free one)\n"
@@ -133,6 +137,7 @@ static void find_web_root(const char *override, char *out, size_t outsz) {
 
 int main(int argc, char **argv) {
   const char *path = ".";
+  int have_path = 0;
   const char *config_path = NULL;
 
   /* First pass: locate --config so the file is read before the other options,
@@ -189,8 +194,15 @@ int main(int argc, char **argv) {
       usage(stderr);
       return 2;
     } else {
-      path = a;
+      path = strcmp(a, "current") == 0 ? "." : a;
+      have_path = 1;
     }
+  }
+
+  /* With no target, print the commands instead of guessing at a directory. */
+  if (!have_path) {
+    usage(stdout);
+    return 0;
   }
 
   if (!is_dir(path)) {
