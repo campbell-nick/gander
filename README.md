@@ -1,3 +1,5 @@
+<p align="center"><img src="web/logo.svg" width="128" height="128" alt="gander logo"></p>
+
 # gander
 
 **Take a gander at your repo.** An offline previewer for a local folder or git
@@ -146,7 +148,7 @@ out, and relative images render normally. With `--ci-status`, a badge whose URL
 names a known workflow is shown in the workflow's pass/fail colour (see above).
 
 Raw HTML is supported too, with a safe whitelist: a centred logo such as
-`<p align="center"><img src="logo.svg" width="128"></p>`, `<details>`,
+`<p align="center"><img src="web/logo.svg" width="128"></p>`, `<details>`,
 `<kbd>` and friends render, while scripts, event handlers and `javascript:`
 URLs are dropped. Relative `src`/`href` are rewritten to `/raw/<path>` just
 like Markdown links.

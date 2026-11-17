@@ -652,6 +652,10 @@ static void handle_request(struct server *s, struct conn *c) {
     serve_web(s, c, "app.js");
     return;
   }
+  if (strcmp(decoded, "/logo.svg") == 0) {
+    serve_web(s, c, "logo.svg");
+    return;
+  }
   if (strcmp(decoded, "/api/tree") == 0) {
     api_tree(s, c);
     return;
