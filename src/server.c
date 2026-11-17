@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAX_CONNS 256
@@ -864,6 +865,17 @@ static void open_browser(const char *host, int port, const char *token) {
 
 /* --------------------------------------------------------------- run -------- */
 
+/* Previewing a plain folder is fine - gander is happy to just show files. Note
+ * the missing repo so the smaller home card makes sense, and now and then let
+ * the goose be a goose about it. */
+static void note_no_git(void) {
+  srand((unsigned)time(NULL) ^ (unsigned)getpid());
+  if (rand() % 100 < 40)
+    fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
+  else
+    fprintf(stderr, "gander: Couldn't find git repo\n");
+}
+
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
                const char *user_css) {
@@ -928,14 +940,12 @@ int server_run(const char *root, const char *web_root, const char *host,
   /* A plain folder has nothing to commit, so commit-only watching would never
    * fire. Fall back to watching files there; there is no `git status` to feed
    * back, so it cannot loop. */
-  int eff_scope = watch_scope;
-  if (watch_scope == WATCH_COMMIT) {
-    char gd[4200];
-    snprintf(gd, sizeof gd, "%s/.git", s.root_real);
-    struct stat gst;
-    if (stat(gd, &gst) != 0)
-      eff_scope = WATCH_ALL;
-  }
+  char gd[4200];
+  snprintf(gd, sizeof gd, "%s/.git", s.root_real);
+  struct stat gst;
+  int is_git = stat(gd, &gst) == 0;
+  int eff_scope =
+      (watch_scope == WATCH_COMMIT && !is_git) ? WATCH_ALL : watch_scope;
 
   s.w = eff_scope != WATCH_OFF ? watch_new(s.root_real, eff_scope) : NULL;
 
@@ -952,6 +962,9 @@ int server_run(const char *root, const char *web_root, const char *host,
     printf("  style:  %s\n", s.user_css);
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
+
+  if (!is_git)
+    note_no_git();
 
   signal(SIGINT, on_signal);
   signal(SIGTERM, on_signal);
