@@ -22,7 +22,6 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
 
 #define MAX_CONNS 256
@@ -865,15 +864,10 @@ static void open_browser(const char *host, int port, const char *token) {
 
 /* --------------------------------------------------------------- run -------- */
 
-/* Previewing a plain folder is fine - gander is happy to just show files. Note
- * the missing repo so the smaller home card makes sense, and now and then let
- * the goose be a goose about it. */
+/* Previewing a plain folder is fine - gander is happy to just show files. No
+ * repo, no fuss; the goose just says its piece. */
 static void note_no_git(void) {
-  srand((unsigned)time(NULL) ^ (unsigned)getpid());
-  if (rand() % 100 < 40)
-    fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
-  else
-    fprintf(stderr, "gander: Couldn't find git repo\n");
+  fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
 }
 
 int server_run(const char *root, const char *web_root, const char *host,
