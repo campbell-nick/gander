@@ -88,7 +88,7 @@ This writes to `$pkgdir/usr/bin/gander` and `$pkgdir/usr/share/gander/web/`.
 gander --version
 ```
 
-Then run it against any folder and open the printed URL:
+Then run it against a git repository and open the printed URL:
 
 ```sh
 gander ~/some/project

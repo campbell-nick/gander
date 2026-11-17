@@ -1,5 +1,5 @@
 /*
- * gander - an offline previewer for a local folder or git repository.
+ * gander - an offline previewer for a local git repository.
  *
  * A small, dependency-free C program that serves a bundled web UI on
  * 127.0.0.1 and opens it in the browser. Nothing ever leaves the machine.

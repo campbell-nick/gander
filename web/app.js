@@ -286,7 +286,7 @@ function renderHome(resetScroll = true) {
 
   pane.innerHTML =
     `<div class="preview-head"><span class="path">${esc(name)}</span>` +
-    `<span class="meta">${m.is_git ? "git repository" : "folder"}</span></div>` +
+    `<span class="meta">git repository</span></div>` +
     '<div class="preview-body"><div class="repo-home">' +
     `<h1 class="repo-h1">${esc(name)}</h1>` +
     desc +

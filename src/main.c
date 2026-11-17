@@ -15,7 +15,7 @@
 
 static void usage(FILE *out) {
   fprintf(out,
-          "gander %s - preview a local folder or git repository, offline.\n"
+          "gander %s - preview a local git repository, offline.\n"
           "\n"
           "Usage: gander [path] [options]\n"
           "\n"
@@ -55,7 +55,7 @@ static void print_version(void) {
 
   printf("\n%s%sgander %s%s\n", blue, color ? "\033[1m" : "",
          GANDER_VERSION, off);
-  printf("%sa small offline previewer for a local folder or git repo%s\n",
+  printf("%sa small offline previewer for a local git repo%s\n",
          dim, off);
   printf("%srun 'gander --help' to see the options%s\n", dim, off);
 }

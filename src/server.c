@@ -865,8 +865,8 @@ static void open_browser(const char *host, int port, const char *token) {
 
 /* --------------------------------------------------------------- run -------- */
 
-/* Previewing a plain folder is fine - gander is happy to just show files. No
- * repo, no fuss; the goose just says its piece. */
+/* gander only previews git repositories. Point it at a plain folder and the
+ * goose says its piece, then we bow out without serving anything. */
 static void note_no_git(void) {
   fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
 }
@@ -927,6 +927,17 @@ int server_run(const char *root, const char *web_root, const char *host,
     snprintf(s.web_real, sizeof s.web_real, "%s", web_root);
   }
 
+  /* gander previews git repositories. A plain folder gets the goose's line and
+   * nothing else - no server, no browser. A `.git` file (a linked worktree)
+   * counts as a repository too. */
+  char gitdir[4200];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", s.root_real);
+  struct stat gitst;
+  if (stat(gitdir, &gitst) != 0) {
+    note_no_git();
+    return 1;
+  }
+
   int lfd = socket(AF_INET, SOCK_STREAM, 0);
   if (lfd < 0) {
     perror("gander: socket");
@@ -963,17 +974,7 @@ int server_run(const char *root, const char *web_root, const char *host,
   if (do_open)
     open_browser(host, actual, token);
 
-  /* A plain folder has nothing to commit, so commit-only watching would never
-   * fire. Fall back to watching files there; there is no `git status` to feed
-   * back, so it cannot loop. */
-  char gd[4200];
-  snprintf(gd, sizeof gd, "%s/.git", s.root_real);
-  struct stat gst;
-  int is_git = stat(gd, &gst) == 0;
-  int eff_scope =
-      (watch_scope == WATCH_COMMIT && !is_git) ? WATCH_ALL : watch_scope;
-
-  s.w = eff_scope != WATCH_OFF ? watch_new(s.root_real, eff_scope) : NULL;
+  s.w = watch_scope != WATCH_OFF ? watch_new(s.root_real, watch_scope) : NULL;
 
   printf("gander %s\n", GANDER_VERSION);
   printf("  root:   %s\n", s.root_real);
@@ -981,16 +982,13 @@ int server_run(const char *root, const char *web_root, const char *host,
          (token && token[0]) ? "?token=***" : "");
   if (s.w)
     printf("  watch:  inotify (%s)\n",
-           eff_scope == WATCH_COMMIT ? "commit" : "all files");
+           watch_scope == WATCH_COMMIT ? "commit" : "all files");
   else
     printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");
   if (s.user_css[0])
     printf("  style:  %s\n", s.user_css);
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
-
-  if (!is_git)
-    note_no_git();
 
   signal(SIGINT, on_signal);
   signal(SIGTERM, on_signal);

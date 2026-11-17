@@ -2,7 +2,7 @@
 
 # gander
 
-**Take a gander at your repo.** An offline previewer for a local folder or git
+**Take a gander at your repo.** An offline previewer for a local git
 repository: a file tree on the left, live previews on the right — Markdown,
 images, animated GIFs, video, PDFs and source code — that refresh the moment
 the files on disk change.
@@ -17,7 +17,7 @@ gander [path]
 
 ## Why
 
-Most "preview this folder" tools either need a build step, a runtime, or the
+Most "preview this repo" tools either need a build step, a runtime, or the
 internet. `gander` is one tiny binary plus a handful of bundled assets. It is
 the sibling of [`nexus`](https://github.com/campbell-nick/nexus): same spirit,
 same minimal C, a different view of your work.
@@ -82,6 +82,9 @@ gander [path] [options]
   -V, --version     show the version and exit
 ```
 
+`path` must be a git repository — a `.git` directory, or a `.git` file for a
+linked worktree. Given a plain folder, gander prints a line and exits.
+
 The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 `<exe-dir>/web`, `<exe-dir>/../share/gander/web`, then `./web`.
 
@@ -137,9 +140,7 @@ By default it refreshes **only when the git history changes** — a commit, a ta
 a branch switch or a fetch (`.git/HEAD`, `refs/`, `logs/` and friends). Editing
 or saving files does not refresh the page, so it stays put while you work.
 `--watch all` restores the old behaviour (refresh on every file change);
-`--watch off` (or `--no-watch`) turns live reload off entirely. In a plain
-folder with no repository there is nothing to commit, so `commit` mode falls
-back to watching files.
+`--watch off` (or `--no-watch`) turns live reload off entirely.
 
 All git commands run with `GIT_OPTIONAL_LOCKS=0`, so `git status` never rewrites
 the index — otherwise that write would be seen as a change and the page would
