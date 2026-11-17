@@ -135,6 +135,98 @@ void sb_put_json_string(struct strbuf *b, const char *s) {
   sb_putc(b, '"');
 }
 
+void sb_put_html_escaped(struct strbuf *b, const char *s, size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    switch (s[i]) {
+    case '&':
+      sb_puts(b, "&amp;");
+      break;
+    case '<':
+      sb_puts(b, "&lt;");
+      break;
+    case '>':
+      sb_puts(b, "&gt;");
+      break;
+    case '"':
+      sb_puts(b, "&quot;");
+      break;
+    default:
+      sb_putc(b, s[i]);
+    }
+  }
+}
+
+/* --------------------------------------------------------------- urls --- */
+
+int url_has_scheme(const char *u) {
+  const char *p = u;
+  if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')))
+    return 0;
+  p++;
+  while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+         (*p >= '0' && *p <= '9') || *p == '+' || *p == '.' || *p == '-')
+    p++;
+  return *p == ':';
+}
+
+int url_is_remote(const char *u, size_t n) {
+  return (n >= 7 && strncasecmp(u, "http://", 7) == 0) ||
+         (n >= 8 && strncasecmp(u, "https://", 8) == 0);
+}
+
+/* Collapse "." and ".." segments in a relative path. */
+static void path_normalize(const char *in, char *out, size_t outsz) {
+  const char *parts[256];
+  size_t plen[256];
+  int np = 0;
+  const char *p = in;
+  while (*p) {
+    while (*p == '/')
+      p++;
+    if (!*p)
+      break;
+    const char *start = p;
+    while (*p && *p != '/')
+      p++;
+    size_t len = (size_t)(p - start);
+    if (len == 1 && start[0] == '.')
+      continue;
+    if (len == 2 && start[0] == '.' && start[1] == '.') {
+      if (np > 0)
+        np--;
+      continue;
+    }
+    if (np < 256) {
+      parts[np] = start;
+      plen[np] = len;
+      np++;
+    }
+  }
+  size_t o = 0;
+  for (int i = 0; i < np; i++) {
+    if (i && o < outsz - 1)
+      out[o++] = '/';
+    for (size_t j = 0; j < plen[i] && o < outsz - 1; j++)
+      out[o++] = parts[i][j];
+  }
+  out[o] = '\0';
+}
+
+char *url_to_local(const char *url, const char *base) {
+  if (url[0] == '#' || url[0] == '/' || url_has_scheme(url))
+    return xstrdup(url);
+  char joined[4096];
+  if (base && base[0])
+    snprintf(joined, sizeof joined, "%s/%s", base, url);
+  else
+    snprintf(joined, sizeof joined, "%s", url);
+  char norm[4096];
+  path_normalize(joined, norm, sizeof norm);
+  char *res = xmalloc(strlen(norm) + 8);
+  sprintf(res, "/raw/%s", norm);
+  return res;
+}
+
 /* ---------------------------------------------------------------- mime --- */
 
 static const struct {

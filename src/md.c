@@ -55,80 +55,8 @@ static void trim(const char **s, size_t *n) {
     (*n)--;
 }
 
-static int has_scheme(const char *u) {
-  const char *p = u;
-  if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')))
-    return 0;
-  p++;
-  while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
-         (*p >= '0' && *p <= '9') || *p == '+' || *p == '.' || *p == '-')
-    p++;
-  return *p == ':';
-}
-
-/* A remote http(s) URL: offline we cannot fetch it, so images that point at
- * one are rendered as a badge chip rather than a broken <img>. */
-static int is_remote(const char *u, size_t n) {
-  return (n >= 7 && strncasecmp(u, "http://", 7) == 0) ||
-         (n >= 8 && strncasecmp(u, "https://", 8) == 0);
-}
-
-/* Collapse "." and ".." segments in a relative path. */
-static void normalize(const char *in, char *out, size_t outsz) {
-  const char *parts[256];
-  size_t plen[256];
-  int np = 0;
-  const char *p = in;
-  while (*p) {
-    while (*p == '/')
-      p++;
-    if (!*p)
-      break;
-    const char *start = p;
-    while (*p && *p != '/')
-      p++;
-    size_t len = (size_t)(p - start);
-    if (len == 1 && start[0] == '.')
-      continue;
-    if (len == 2 && start[0] == '.' && start[1] == '.') {
-      if (np > 0)
-        np--;
-      continue;
-    }
-    if (np < 256) {
-      parts[np] = start;
-      plen[np] = len;
-      np++;
-    }
-  }
-  size_t o = 0;
-  for (int i = 0; i < np; i++) {
-    if (i && o < outsz - 1)
-      out[o++] = '/';
-    for (size_t j = 0; j < plen[i] && o < outsz - 1; j++)
-      out[o++] = parts[i][j];
-  }
-  out[o] = '\0';
-}
-
-/* Turn a link/image target into something the browser can fetch. */
-static char *resolve_url(const char *url, const char *base) {
-  if (url[0] == '#' || url[0] == '/' || has_scheme(url))
-    return xstrdup(url);
-  char joined[4096];
-  if (base[0])
-    snprintf(joined, sizeof joined, "%s/%s", base, url);
-  else
-    snprintf(joined, sizeof joined, "%s", url);
-  char norm[4096];
-  normalize(joined, norm, sizeof norm);
-  char *res = xmalloc(strlen(norm) + 8);
-  sprintf(res, "/raw/%s", norm);
-  return res;
-}
-
 static void put_attr_url(struct strbuf *o, const char *url, const char *base) {
-  char *r = resolve_url(url, base);
+  char *r = url_to_local(url, base);
   esc(o, r, strlen(r));
   free(r);
 }
@@ -200,7 +128,7 @@ static void inline_md(struct strbuf *o, const char *s, size_t n,
           const char *sp = memchr(url, ' ', urllen);
           if (sp)
             urllen = (size_t)(sp - url);
-          if (is_remote(url, urllen)) {
+          if (url_is_remote(url, urllen)) {
             /* Offline: show a badge chip using the alt text instead of an
              * <img> the browser cannot fetch. A span (not a link) so that a
              * surrounding [![badge](img)](url) link stays valid HTML. */
@@ -304,6 +232,16 @@ static void inline_md(struct strbuf *o, const char *s, size_t n,
           i = close + 1;
           continue;
         }
+      }
+    }
+
+    /* inline HTML tag (e.g. <kbd>Ctrl</kbd>, <img ...>) */
+    if (c == '<') {
+      size_t tl = html_tag_len(s + i, n - i);
+      if (tl) {
+        html_to_html(o, s + i, tl, base);
+        i += tl;
+        continue;
       }
     }
 
@@ -623,6 +561,24 @@ void md_to_html(struct strbuf *o, const char *text, size_t len,
       continue;
     }
 
+    /* raw HTML block (e.g. <p align="center"><img ...></p>) */
+    if (html_block_start(l, n)) {
+      struct strbuf block;
+      sb_init(&block);
+      while (i < L.n) {
+        const char *hl = L.v[i];
+        size_t hn = strlen(hl);
+        if (is_blank(hl, hn))
+          break;
+        sb_putn(&block, hl, hn);
+        sb_putc(&block, '\n');
+        i++;
+      }
+      html_to_html(o, block.buf ? block.buf : "", block.len, base);
+      sb_free(&block);
+      continue;
+    }
+
     /* fenced code */
     size_t fi, run;
     char fch;
@@ -797,6 +753,7 @@ void md_to_html(struct strbuf *o, const char *text, size_t len,
         size_t mi, mo;
         int moo;
         if (pl[0] == '#' || pl[0] == '>' || is_hr(pl, pn) ||
+            html_block_start(pl, pn) ||
             is_fence(pl, pn, &hi, &hc, &ri) ||
             list_marker(pl, pn, &mi, &moo, &mo))
           break;

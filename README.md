@@ -105,12 +105,19 @@ fenced code, block quotes, nested ordered/unordered lists, GFM task lists, GFM
 tables, horizontal rules, and inline emphasis, strong, strikethrough, code
 spans, links, images and autolinks. Relative links and images are rewritten to
 `/raw/<path>` so they resolve against the repository. Fenced code blocks are
-syntax-highlighted when they name a language we know.
+syntax-highlighted when they name a language we know. Raw HTML is passed
+through a safe whitelist (see below).
 
 README badges are usually remote images. Since `gander` never touches the
 network, a remote image is shown as a small chip carrying its alt text instead
 of a broken image; a linked badge such as `[![CI](badge.svg)](url)` still links
 out, and relative images render normally.
+
+Raw HTML is supported too, with a safe whitelist: a centred logo such as
+`<p align="center"><img src="logo.svg" width="128"></p>`, `<details>`,
+`<kbd>` and friends render, while scripts, event handlers and `javascript:`
+URLs are dropped. Relative `src`/`href` are rewritten to `/raw/<path>` just
+like Markdown links.
 
 ## Theme
 
@@ -124,6 +131,8 @@ one block; a light palette is included there, commented out.
 - Requests are confined to the previewed directory via `realpath` checks.
 - A strict `Content-Security-Policy` prevents the page from loading anything
   remote.
+- Raw HTML in Markdown is sanitised against a tag/attribute whitelist; scripts,
+  event handlers and `javascript:` URLs are removed.
 - `--token` gates access behind a cookie for shared machines.
 
 ## Roadmap

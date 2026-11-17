@@ -32,8 +32,24 @@ void sb_putn(struct strbuf *b, const char *s, size_t n);
 void sb_printf(struct strbuf *b, const char *fmt, ...);
 void sb_put_json_string(struct strbuf *b, const char *s);
 
+/* Escape a byte range for HTML text or a double-quoted attribute value. */
+void sb_put_html_escaped(struct strbuf *b, const char *s, size_t n);
+
 const char *mime_type(const char *path);
 int path_has_ext(const char *path, const char *const *exts);
+
+/* --------------------------------------------------------------- urls --- */
+
+/* True when the string starts with a URL scheme (e.g. "http:", "mailto:"). */
+int url_has_scheme(const char *u);
+
+/* True when the string is a remote http(s) URL, which offline we cannot fetch. */
+int url_is_remote(const char *u, size_t n);
+
+/* Rewrite a link/image target into something the browser can fetch: a relative
+ * path becomes /raw/<path>; anchors, absolute paths and URLs pass through. The
+ * caller frees the result. */
+char *url_to_local(const char *url, const char *base);
 
 /* --------------------------------------------------------------- files --- */
 
@@ -74,6 +90,23 @@ int watch_take(struct watcher *w, char ***paths, size_t *n);
  * source file (repo-relative), used to resolve relative links and images. */
 void md_to_html(struct strbuf *out, const char *text, size_t len,
                 const char *base);
+
+/* --------------------------------------------------------------- html --- */
+
+/* Render a fragment of raw HTML: keep a whitelist of safe tags and attributes,
+ * drop everything else, rewrite relative src/href to /raw/<path>, and show
+ * remote images as badge chips. READMEs commonly embed raw HTML such as a
+ * centred logo. base resolves relative paths, as for md_to_html. */
+void html_to_html(struct strbuf *out, const char *text, size_t len,
+                  const char *base);
+
+/* If a plausible HTML tag or comment begins at s, return its byte length
+ * including the closing '>', else 0. */
+size_t html_tag_len(const char *s, size_t n);
+
+/* True when a line begins an HTML block (a tag or comment after optional
+ * leading whitespace). */
+int html_block_start(const char *line, size_t len);
 
 /* ---------------------------------------------------------------- repo --- */
 
