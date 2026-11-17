@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -905,6 +906,34 @@ static void farewell(void) {
   printf("\ngander: %s\n", lines[(unsigned)rand() % n]);
 }
 
+/* The tty driver echoes a typed Ctrl-C as "^C" before the signal ever reaches
+ * us. gander never reads the keyboard, so switch echo off for the duration -
+ * Ctrl-C then arrives as a signal with nothing echoed - and put it back on the
+ * way out. Returns the tty fd it changed (and fills *saved), or -1. */
+static int tty_quiet(struct termios *saved) {
+  int fds[3] = {STDIN_FILENO, STDERR_FILENO, STDOUT_FILENO};
+  for (int i = 0; i < 3; i++) {
+    if (!isatty(fds[i]))
+      continue;
+    if (tcgetattr(fds[i], saved) != 0)
+      return -1;
+    struct termios t = *saved;
+    t.c_lflag &= ~(tcflag_t)ECHO;
+#ifdef ECHOCTL
+    t.c_lflag &= ~(tcflag_t)ECHOCTL;
+#endif
+    if (tcsetattr(fds[i], TCSANOW, &t) != 0)
+      return -1;
+    return fds[i];
+  }
+  return -1;
+}
+
+static void tty_restore(int fd, const struct termios *saved) {
+  if (fd >= 0)
+    tcsetattr(fd, TCSANOW, saved);
+}
+
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
                const char *user_css) {
@@ -992,6 +1021,10 @@ int server_run(const char *root, const char *web_root, const char *host,
     printf("  style:  %s\n", s.user_css);
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
+
+  /* Quit quietly: no echoed "^C" when you stop the server. */
+  struct termios tty_saved;
+  int tty_q = tty_quiet(&tty_saved);
 
   signal(SIGINT, on_signal);
   signal(SIGTERM, on_signal);
@@ -1095,6 +1128,7 @@ int server_run(const char *root, const char *web_root, const char *host,
     }
   }
 
+  tty_restore(tty_q, &tty_saved);
   farewell();
   while (s.conns)
     conn_free(&s, s.conns);
