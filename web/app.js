@@ -401,6 +401,7 @@ function openGit() {
   state.view = "git";
   renderTree();
   renderGit();
+  $("preview").scrollTop = 0;
   loadLog();
 }
 
@@ -431,7 +432,9 @@ async function showPreview(path, resetScroll) {
 
   const render = (html) => {
     pane.innerHTML = html;
-    if (!resetScroll) pane.scrollTop = keepScroll;
+    /* Replacing innerHTML keeps the old scroll offset, so set it explicitly:
+     * a fresh document starts at the top, a live reload keeps your place. */
+    pane.scrollTop = resetScroll ? 0 : keepScroll;
   };
 
   try {
@@ -490,7 +493,7 @@ async function showDiff(path, resetScroll) {
       head(path) +
       `<div class="preview-body"><p>Could not show diff: ${esc(String(err))}</p></div>`;
   }
-  if (!resetScroll) pane.scrollTop = keepScroll;
+  pane.scrollTop = resetScroll ? 0 : keepScroll;
 }
 
 /* ---------------------------------------------------------------- boot ---- */
