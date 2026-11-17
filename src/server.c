@@ -866,16 +866,13 @@ static void open_browser(const char *host, int port, const char *token) {
 
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
-               int ci_status, const char *user_css) {
+               const char *user_css) {
   /* Never let git take its optional locks. Without this, `git status` (which
    * we run to build the tree badges and the home card) refreshes and rewrites
    * .git/index, the watcher sees that as a change, the page refetches status,
    * and the two feed each other - the page blinks and scroll jumps to the
    * top. GIT_OPTIONAL_LOCKS=0 tells git to skip those optional index writes. */
   setenv("GIT_OPTIONAL_LOCKS", "0", 1);
-
-  if (ci_status)
-    ci_status_enable();
 
   struct server s;
   memset(&s, 0, sizeof s);
@@ -942,10 +939,6 @@ int server_run(const char *root, const char *web_root, const char *host,
 
   s.w = eff_scope != WATCH_OFF ? watch_new(s.root_real, eff_scope) : NULL;
 
-  /* One CI lookup up front (only with --ci-status); it is re-run on commit. */
-  if (ci_status)
-    ci_status_refresh(s.root_real);
-
   printf("gander %s\n", GANDER_VERSION);
   printf("  root:   %s\n", s.root_real);
   printf("  url:    http://%s:%d/%s\n", host, actual,
@@ -955,7 +948,6 @@ int server_run(const char *root, const char *web_root, const char *host,
            eff_scope == WATCH_COMMIT ? "commit" : "all files");
   else
     printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");
-  printf("  ci:     %s\n", ci_status ? "gh (network)" : "off");
   if (s.user_css[0])
     printf("  style:  %s\n", s.user_css);
   printf("\nPress Ctrl-C to stop.\n");
@@ -1047,16 +1039,6 @@ int server_run(const char *root, const char *web_root, const char *host,
     char **paths;
     size_t np;
     if (watch_take(s.w, &paths, &np)) {
-      /* A commit (or branch switch/tag/fetch) changes CI on the forge; look
-       * it up again before telling clients, so the refresh they do picks up
-       * the new status. */
-      if (ci_status) {
-        for (size_t i = 0; i < np; i++)
-          if (strncmp(paths[i], ".git/", 5) == 0) {
-            ci_status_refresh(s.root_real);
-            break;
-          }
-      }
       broadcast(&s, paths, np);
       for (size_t i = 0; i < np; i++)
         free(paths[i]);

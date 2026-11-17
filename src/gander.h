@@ -130,13 +130,6 @@ struct langent {
   long bytes;
 };
 
-/* One CI workflow and its latest run status, when --ci-status is in use. */
-struct ciworkflow {
-  char name[160];
-  char file[160];
-  char status[16]; /* passing | failing | running | unknown */
-};
-
 struct repoinfo {
   int is_git;
   char branch[256];
@@ -153,9 +146,6 @@ struct repoinfo {
   char license[64];
   int ci_count;
   char ci_names[8][160];
-  char ci_status[16]; /* aggregate: passing/failing/running/unknown ("" if off) */
-  int ci_wf_n;
-  struct ciworkflow ci_wf[8];
   char readme[256];
   char description[400];
   long files;
@@ -169,12 +159,6 @@ void repo_info(const char *root, struct repoinfo *ri);
 
 /* Serialise the metadata as JSON. */
 void repo_info_json(struct strbuf *out, const struct repoinfo *ri);
-
-/* Optional CI status, read from the forge with the `gh` CLI. Off by default so
- * gander stays fully offline; call ci_status_enable() to turn it on, then
- * ci_status_refresh() to (re)query. refresh() is a no-op when disabled. */
-void ci_status_enable(void);
-void ci_status_refresh(const char *root);
 
 /* One entry of `git status --porcelain`. code is the raw two-letter XY code;
  * status is a normalised word (modified/added/deleted/renamed/copied/
@@ -228,7 +212,6 @@ struct gander_config {
   int port;            /* 0 = pick a free port */
   int do_open;         /* launch a browser on start */
   int watch_scope;     /* enum watch_scope */
-  int ci_status;       /* opt in to the network `gh` lookup */
   char host[256];
   char web_root[4096];
   char token[512];
@@ -251,6 +234,6 @@ void config_load(struct gander_config *cfg, const char *explicit_path);
  * theme. */
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
-               int ci_status, const char *user_css);
+               const char *user_css);
 
 #endif /* GANDER_H */

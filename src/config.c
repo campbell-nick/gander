@@ -16,7 +16,6 @@
  *   host        address      interface to bind            (127.0.0.1)
  *   open        true/false   launch a browser on start    (true)
  *   watch       commit|all|off   what live reload reacts to (commit)
- *   ci-status   true/false   opt in to the network gh call (false)
  *   web-root    directory    where the UI assets live
  *   token       string       require this token to open the UI
  *   style       path         a stylesheet to layer over the bundled one
@@ -64,7 +63,6 @@ void config_init(struct gander_config *cfg) {
   cfg->port = 0;
   cfg->do_open = 1;
   cfg->watch_scope = WATCH_COMMIT;
-  cfg->ci_status = 0;
   snprintf(cfg->host, sizeof cfg->host, "127.0.0.1");
 }
 
@@ -89,12 +87,6 @@ static void apply_kv(struct gander_config *cfg, const char *path, int lineno,
       cfg->watch_scope = WATCH_COMMIT;
     else
       fprintf(stderr, "gander: %s:%d: watch expects commit/all/off\n", path,
-              lineno);
-  } else if (strcmp(key, "ci-status") == 0) {
-    if (parse_bool(val, &b))
-      cfg->ci_status = b;
-    else
-      fprintf(stderr, "gander: %s:%d: ci-status expects true/false\n", path,
               lineno);
   } else if (strcmp(key, "web-root") == 0) {
     snprintf(cfg->web_root, sizeof cfg->web_root, "%s", val);

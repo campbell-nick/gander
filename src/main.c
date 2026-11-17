@@ -29,14 +29,11 @@ static void usage(FILE *out) {
           "  --watch <mode>    what live reload reacts to: commit (default),\n"
           "                    all (every file change) or off\n"
           "  --no-watch        disable live reload (same as --watch off)\n"
-          "  --ci-status       show real CI pass/fail via the `gh` CLI (uses\n"
-          "                    the network; off by default)\n"
           "  -h, --help        show this help and exit\n"
           "  -V, --version     show the version and exit\n"
           "\n"
           "By default the UI refreshes only when you commit (or switch branch,\n"
           "tag or fetch); use --watch all to also refresh as you edit files.\n"
-          "CI status is off by default, keeping gander fully offline.\n"
           "\n"
           "Settings can also live in ~/.config/gander/config (override with\n"
           "--config or $GANDER_CONFIG); a style.css beside it is layered over\n"
@@ -167,10 +164,6 @@ int main(int argc, char **argv) {
       cfg.watch_scope = parse_watch(argv[++i]);
     } else if (strncmp(a, "--watch=", 8) == 0) {
       cfg.watch_scope = parse_watch(a + 8);
-    } else if (strcmp(a, "--ci-status") == 0) {
-      cfg.ci_status = 1;
-    } else if (strcmp(a, "--no-ci-status") == 0) {
-      cfg.ci_status = 0;
     } else if (a[0] == '-' && a[1] != '\0') {
       fprintf(stderr, "gander: unknown option: %s\n", a);
       usage(stderr);
@@ -195,5 +188,5 @@ int main(int argc, char **argv) {
 
   return server_run(path, web_root, cfg.host, cfg.port, cfg.do_open,
                     cfg.token[0] ? cfg.token : NULL, cfg.watch_scope,
-                    cfg.ci_status, cfg.css[0] ? cfg.css : NULL);
+                    cfg.css[0] ? cfg.css : NULL);
 }
