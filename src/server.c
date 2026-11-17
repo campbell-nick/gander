@@ -894,7 +894,8 @@ static void farewell(void) {
       "Go forth; the road is thine.",
       "Anon we part, as all good things must.",
       "Farewell, dear friend; till we meet anon.",
-      "Your mileage may vary; make your changes.",
+      "Your mileage may vary.",
+      "Make it yours.",
   };
   size_t n = sizeof lines / sizeof lines[0];
   srand((unsigned)time(NULL) ^ (unsigned)getpid());
