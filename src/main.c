@@ -27,11 +27,14 @@ static void usage(FILE *out) {
           "  --watch <mode>    what live reload reacts to: commit (default),\n"
           "                    all (every file change) or off\n"
           "  --no-watch        disable live reload (same as --watch off)\n"
+          "  --ci-status       show real CI pass/fail via the `gh` CLI (uses\n"
+          "                    the network; off by default)\n"
           "  -h, --help        show this help and exit\n"
           "  -V, --version     show the version and exit\n"
           "\n"
           "By default the UI refreshes only when you commit (or switch branch,\n"
-          "tag or fetch); use --watch all to also refresh as you edit files.\n",
+          "tag or fetch); use --watch all to also refresh as you edit files.\n"
+          "CI status is off by default, keeping gander fully offline.\n",
           GANDER_VERSION);
 }
 
@@ -113,6 +116,7 @@ int main(int argc, char **argv) {
   int port = 0;
   int do_open = 1;
   int watch_scope = WATCH_COMMIT;
+  int ci_status = 0;
 
   for (int i = 1; i < argc; i++) {
     const char *a = argv[i];
@@ -146,6 +150,10 @@ int main(int argc, char **argv) {
       watch_scope = parse_watch(argv[++i]);
     } else if (strncmp(a, "--watch=", 8) == 0) {
       watch_scope = parse_watch(a + 8);
+    } else if (strcmp(a, "--ci-status") == 0) {
+      ci_status = 1;
+    } else if (strcmp(a, "--no-ci-status") == 0) {
+      ci_status = 0;
     } else if (a[0] == '-' && a[1] != '\0') {
       fprintf(stderr, "gander: unknown option: %s\n", a);
       usage(stderr);
@@ -167,5 +175,6 @@ int main(int argc, char **argv) {
   char web_root[PATH_MAX + 64];
   find_web_root(web_override, web_root, sizeof web_root);
 
-  return server_run(path, web_root, host, port, do_open, token, watch_scope);
+  return server_run(path, web_root, host, port, do_open, token, watch_scope,
+                    ci_status);
 }

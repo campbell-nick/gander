@@ -36,6 +36,15 @@ static void shell_quote(const char *s, char *out, size_t outsz) {
   out[o] = '\0';
 }
 
+/* Copy src into a fixed-size field, always NUL-terminating. */
+static void copy_str(char *dst, size_t dstsz, const char *src) {
+  size_t n = strlen(src);
+  if (n >= dstsz)
+    n = dstsz - 1;
+  memcpy(dst, src, n);
+  dst[n] = '\0';
+}
+
 /* Run a command, capture stdout, strip trailing newlines. 1 on exit 0. */
 static int run_capture(const char *cmd, char *out, size_t outsz) {
   out[0] = '\0';
@@ -208,6 +217,179 @@ static void detect_ci(const char *root, struct repoinfo *ri) {
   closedir(d);
 }
 
+/* ------------------------------------------------------------ ci status -- */
+
+/* Real CI results live on the forge, not on disk, so this is the one place
+ * gander may use the network - and only when --ci-status was given. We ask the
+ * authenticated `gh` CLI for the latest run of each workflow and cache the
+ * answer. With the flag off, nothing here runs and gander stays offline. */
+
+static int ci_enabled = 0;
+static char ci_agg[16] = "";
+static struct ciworkflow ci_cache[8];
+static int ci_cache_n = 0;
+
+void ci_status_enable(void) { ci_enabled = 1; }
+
+/* Map a run's status/conclusion to a single word. */
+static const char *ci_classify(const char *status, const char *conclusion) {
+  if (strcmp(status, "completed") != 0) {
+    if (strcmp(status, "in_progress") == 0 || strcmp(status, "queued") == 0 ||
+        strcmp(status, "requested") == 0 || strcmp(status, "waiting") == 0 ||
+        strcmp(status, "pending") == 0)
+      return "running";
+    return "unknown";
+  }
+  if (strcmp(conclusion, "success") == 0)
+    return "passing";
+  if (strcmp(conclusion, "failure") == 0 || strcmp(conclusion, "timed_out") == 0 ||
+      strcmp(conclusion, "startup_failure") == 0 ||
+      strcmp(conclusion, "action_required") == 0)
+    return "failing";
+  return "unknown"; /* cancelled, skipped, neutral, stale */
+}
+
+void ci_status_refresh(const char *root) {
+  if (!ci_enabled)
+    return;
+
+  char q[4400];
+  shell_quote(root, q, sizeof q);
+  char cmd[8000];
+  char buf[65536];
+  char branch[256] = "";
+
+  /* The default branch, so the status matches the badge GitHub would show. */
+  snprintf(cmd, sizeof cmd,
+           "cd %s && gh repo view --json defaultBranchRef "
+           "--jq .defaultBranchRef.name 2>/dev/null",
+           q);
+  run_capture(cmd, branch, sizeof branch);
+
+  /* Workflow name -> file name, so a README badge can be matched by either. */
+  char wname[16][160], wfile[16][160];
+  int wfn = 0;
+  snprintf(cmd, sizeof cmd,
+           "cd %s && gh workflow list --all --json name,path "
+           "--template '{{range .}}{{.name}}{{\"\\t\"}}{{.path}}{{\"\\n\"}}{{end}}' "
+           "2>/dev/null",
+           q);
+  if (run_capture(cmd, buf, sizeof buf) && buf[0]) {
+    for (char *line = strtok(buf, "\n"); line && wfn < 16;
+         line = strtok(NULL, "\n")) {
+      char *tab = strchr(line, '\t');
+      if (!tab)
+        continue;
+      *tab = '\0';
+      const char *path = tab + 1;
+      const char *base = strrchr(path, '/');
+      base = base ? base + 1 : path;
+      snprintf(wname[wfn], sizeof wname[0], "%s", line);
+      snprintf(wfile[wfn], sizeof wfile[0], "%s", base);
+      wfn++;
+    }
+  }
+
+  /* Latest run per workflow on the default branch. */
+  char bq[320] = "";
+  if (branch[0]) {
+    char t[300];
+    shell_quote(branch, t, sizeof t);
+    snprintf(bq, sizeof bq, "--branch %s", t);
+  }
+  snprintf(cmd, sizeof cmd,
+           "cd %s && gh run list %s --limit 100 "
+           "--json workflowName,status,conclusion "
+           "--template '{{range .}}{{.workflowName}}{{\"\\t\"}}{{.status}}{{\"\\t\"}}"
+           "{{.conclusion}}{{\"\\n\"}}{{end}}' 2>/dev/null",
+           q, bq);
+
+  /* Latest run per workflow on the default branch: workflowName -> status. */
+  char rname[16][160], rstat[16][16];
+  int rn = 0;
+  if (run_capture(cmd, buf, sizeof buf) && buf[0]) {
+    for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n")) {
+      char *t1 = strchr(line, '\t');
+      if (!t1)
+        continue;
+      *t1 = '\0';
+      char *t2 = strchr(t1 + 1, '\t');
+      if (!t2)
+        continue;
+      *t2 = '\0';
+      const char *w = line, *st = t1 + 1, *concl = t2 + 1;
+
+      /* runs are newest first: keep only the first per workflow */
+      int seen = 0;
+      for (int i = 0; i < rn; i++)
+        if (strcmp(rname[i], w) == 0) {
+          seen = 1;
+          break;
+        }
+      if (seen || rn >= 16)
+        continue;
+      snprintf(rname[rn], sizeof rname[0], "%s", w);
+      snprintf(rstat[rn], sizeof rstat[0], "%s", ci_classify(st, concl));
+      rn++;
+    }
+  }
+
+  /* Build the cache from the configured workflows, then any run-only ones, so
+   * every workflow shows up (a tag-triggered one with no default-branch run
+   * simply reads "unknown"). */
+  ci_cache_n = 0;
+  int any_fail = 0, any_run = 0, any_pass = 0;
+  for (int i = 0; i < wfn && ci_cache_n < 8; i++) {
+    struct ciworkflow *c = &ci_cache[ci_cache_n++];
+    copy_str(c->name, sizeof c->name, wname[i]);
+    copy_str(c->file, sizeof c->file, wfile[i]);
+    const char *status = "unknown";
+    for (int j = 0; j < rn; j++)
+      if (strcmp(rname[j], wname[i]) == 0) {
+        status = rstat[j];
+        break;
+      }
+    snprintf(c->status, sizeof c->status, "%s", status);
+    if (strcmp(status, "failing") == 0)
+      any_fail = 1;
+    else if (strcmp(status, "running") == 0)
+      any_run = 1;
+    else if (strcmp(status, "passing") == 0)
+      any_pass = 1;
+  }
+  for (int j = 0; j < rn && ci_cache_n < 8; j++) {
+    int seen = 0;
+    for (int i = 0; i < ci_cache_n; i++)
+      if (strcmp(ci_cache[i].name, rname[j]) == 0) {
+        seen = 1;
+        break;
+      }
+    if (seen)
+      continue;
+    struct ciworkflow *c = &ci_cache[ci_cache_n++];
+    copy_str(c->name, sizeof c->name, rname[j]);
+    c->file[0] = '\0';
+    snprintf(c->status, sizeof c->status, "%s", rstat[j]);
+    if (strcmp(rstat[j], "failing") == 0)
+      any_fail = 1;
+    else if (strcmp(rstat[j], "running") == 0)
+      any_run = 1;
+    else if (strcmp(rstat[j], "passing") == 0)
+      any_pass = 1;
+  }
+
+  if (ci_cache_n == 0)
+    snprintf(ci_agg, sizeof ci_agg, "unknown");
+  else if (any_fail)
+    snprintf(ci_agg, sizeof ci_agg, "failing");
+  else if (any_run)
+    snprintf(ci_agg, sizeof ci_agg, "running");
+  else if (any_pass)
+    snprintf(ci_agg, sizeof ci_agg, "passing");
+  else
+    snprintf(ci_agg, sizeof ci_agg, "unknown");
+}
+
 /* ------------------------------------------------------------- languages -- */
 
 static const struct {
@@ -327,6 +509,20 @@ void repo_info(const char *root, struct repoinfo *ri) {
   find_readme(root, ri->readme, sizeof ri->readme);
   read_readme_desc(root, ri->readme, ri->description, sizeof ri->description);
 
+  /* Attach any CI status we fetched from the forge. When we have it, the gh
+   * workflow names are the friendlier ones to show. */
+  snprintf(ri->ci_status, sizeof ri->ci_status, "%s", ci_agg);
+  if (ci_cache_n > 0) {
+    ri->ci_count = ci_cache_n;
+    for (int i = 0; i < ci_cache_n; i++) {
+      const struct ciworkflow *c = &ci_cache[i];
+      memcpy(ri->ci_names[i], c->name, sizeof ri->ci_names[0]);
+      ri->ci_names[i][sizeof ri->ci_names[0] - 1] = '\0';
+      ri->ci_wf[i] = *c;
+    }
+  }
+  ri->ci_wf_n = ci_cache_n;
+
   if (!ri->is_git)
     return;
 
@@ -442,6 +638,22 @@ void repo_info_json(struct strbuf *out, const struct repoinfo *ri) {
     if (i)
       sb_putc(out, ',');
     sb_put_json_string(out, ri->ci_names[i]);
+  }
+  sb_puts(out, "]");
+
+  sb_puts(out, ",\"ci_status\":");
+  sb_put_json_string(out, ri->ci_status);
+  sb_puts(out, ",\"ci_workflows\":[");
+  for (int i = 0; i < ri->ci_wf_n; i++) {
+    if (i)
+      sb_putc(out, ',');
+    sb_puts(out, "{\"name\":");
+    sb_put_json_string(out, ri->ci_wf[i].name);
+    sb_puts(out, ",\"file\":");
+    sb_put_json_string(out, ri->ci_wf[i].file);
+    sb_puts(out, ",\"status\":");
+    sb_put_json_string(out, ri->ci_wf[i].status);
+    sb_putc(out, '}');
   }
   sb_puts(out, "]");
 

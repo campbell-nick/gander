@@ -218,6 +218,26 @@ function head(path, meta, actions) {
   );
 }
 
+/* The CI chip. With --ci-status we show a real pass/fail; otherwise a neutral
+ * note, because gander is offline by default and will not invent a status. */
+function ciChip(m) {
+  if (!m.ci || !m.ci.length) return `<span class="chip">no CI configured</span>`;
+  const detail = (m.ci || []).join(", ");
+  const t = ` title="${esc(detail)}"`;
+  switch (m.ci_status) {
+    case "passing":
+      return `<span class="chip ok"${t}><span class="dot"></span>CI: passing</span>`;
+    case "failing":
+      return `<span class="chip bad"${t}><span class="dot"></span>CI: failing</span>`;
+    case "running":
+      return `<span class="chip warn"${t}><span class="dot"></span>CI: running</span>`;
+    case "unknown":
+      return `<span class="chip"${t}><span class="dot"></span>CI: unknown</span>`;
+    default:
+      return `<span class="chip"${t}>CI configured</span>`;
+  }
+}
+
 /* GitHub-style repository home card, built entirely from local data. */
 function renderHome(resetScroll = true) {
   const pane = $("preview");
@@ -240,7 +260,7 @@ function renderHome(resetScroll = true) {
     chips.push(`<span class="chip">🏷 <b>${esc(m.latest_tag)}</b>${
       m.tag_count > 1 ? ` <span>+${m.tag_count - 1}</span>` : ""}</span>`);
   if (m.ci && m.ci.length)
-    chips.push(`<span class="chip ok"><span class="dot"></span>CI: ${esc(m.ci.join(", "))}</span>`);
+    chips.push(ciChip(m));
   else
     chips.push(`<span class="chip">no CI configured</span>`);
   if (m.license) chips.push(`<span class="chip">⚖ ${esc(m.license)}</span>`);
@@ -315,8 +335,46 @@ async function loadHomeReadme(path, keep = 0) {
   el.innerHTML =
     `<div class="readme-head">${esc(path)}</div>` +
     `<article class="markdown">${html}</article>`;
+  enhanceBadges(el);
   const pane = $("preview");
   if (pane) pane.scrollTop = keep;
+}
+
+/* Pull the workflow file/name out of a GitHub CI badge URL, if it is one. */
+function badgeWorkflowKey(url) {
+  let m = url.match(/\/actions\/workflows\/([^/?#]+)\/badge/i);
+  if (m) return decodeURIComponent(m[1]);
+  m = url.match(/\/workflows\/([^/?#]+)\/badge/i);
+  if (m) return decodeURIComponent(m[1]);
+  m = url.match(/\/actions\/workflow\/status\/[^/]+\/[^/]+\/([^/?#]+)/i);
+  if (m) return decodeURIComponent(m[1]);
+  return null;
+}
+
+/* README CI badges are remote images the browser cannot fetch, so the server
+ * renders each as a chip carrying its alt text. When we know the workflow's
+ * status (via --ci-status), upgrade the chip to say passing/failing. */
+function enhanceBadges(scope) {
+  const wfs = (state.meta && state.meta.ci_workflows) || [];
+  if (!wfs.length || !scope) return;
+  for (const el of scope.querySelectorAll(".badge")) {
+    const key = badgeWorkflowKey(el.getAttribute("title") || "");
+    if (!key) continue;
+    const k = key.toLowerCase();
+    const wf = wfs.find((w) => {
+      if (!w) return false;
+      const file = (w.file || "").toLowerCase();
+      const name = (w.name || "").toLowerCase();
+      return (
+        (file && (file === k || file.replace(/\.[^.]+$/, "") === k)) ||
+        (name && name === k)
+      );
+    });
+    if (!wf || !wf.status || wf.status === "unknown") continue;
+    el.classList.add("badge-" + wf.status);
+    const label = (wf.file || wf.name || key).replace(/\.[^.]+$/, "");
+    el.textContent = `${label}: ${wf.status}`;
+  }
 }
 
 function showHome() {
@@ -443,6 +501,7 @@ async function showPreview(path, resetScroll) {
       if (!res.ok) throw new Error(res.statusText);
       const html = await res.text();
       render(head(path, "markdown", actions) + `<div class="preview-body"><article class="markdown">${html}</article></div>`);
+      enhanceBadges(pane);
     } else if (IMG.has(e)) {
       render(
         head(path, "image", actions) +

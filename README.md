@@ -6,8 +6,8 @@ images, animated GIFs, video, PDFs and source code — that refresh the moment
 the files on disk change.
 
 Everything is local. `gander` is a small, dependency-free C program that serves
-a bundled web UI on `127.0.0.1` and opens it in your browser. No network, no
-CDN, no telemetry, ever.
+a bundled web UI on `127.0.0.1` and opens it in your browser. No network by
+default, no CDN, no telemetry — the one opt-in exception is `--ci-status`.
 
 ```
 gander [path]
@@ -29,15 +29,17 @@ same minimal C, a different view of your work.
   seeking) and audio.
 - **Code and text** preview with GitHub-style syntax highlighting and a
   line-number gutter.
-- **Repo home card**: branch, latest tag (as the release), CI config, license,
+- **Repo home card**: branch, latest tag (as the release), CI status, license,
   commit and file counts, a language breakdown, the last commit and the
-  rendered README below — all read from disk, never the network.
+  rendered README below — all read from disk, never the network (unless you opt
+  into `--ci-status`).
 - **Git panel**: working-tree changes grouped as staged/changes/untracked with
   status colours in the tree, a recent-commit log, and a per-file unified diff.
 - **Live reload**: refresh only when you commit (or switch branch/tag/fetch),
   keeping your place; `--watch all` also refreshes as you edit files.
 - **Offline by construction**: bound to `127.0.0.1`, strict CSP, all assets
-  bundled.
+  bundled. The only thing that may touch the network is the opt-in
+  `--ci-status` flag.
 
 ## Build
 
@@ -67,6 +69,8 @@ gander [path] [options]
   --no-open         do not launch a browser
   --watch <mode>    what live reload reacts to: commit (default), all or off
   --no-watch        disable live reload (same as --watch off)
+  --ci-status       show real CI pass/fail via the `gh` CLI (uses the network)
+  --no-ci-status    keep gander fully offline (default)
   -h, --help        show help and exit
   -V, --version     show the version and exit
 ```
@@ -97,13 +101,26 @@ refresh in a loop.
 Live reload is Linux-only for now; on other platforms `gander` still serves
 everything, just without automatic refresh.
 
+## CI status
+
+Real pass/fail only exists on the forge, so by default `gander` does **not**
+claim one — it just notes that CI is configured. Pass `--ci-status` to opt in,
+and `gander` will ask the authenticated [`gh` CLI](https://cli.github.com/) for
+the latest run of each workflow on the default branch. The home card then shows
+a green *passing*, red *failing* or yellow *running* chip, and README CI badges
+are upgraded from a neutral chip to the same pass/fail wording.
+
+Status is fetched once at startup and again on every commit; if `gh` is missing,
+not logged in, or offline, it falls back to `unknown` and `gander` keeps
+working. Without the flag, `gander` never touches the network.
+
 ## Endpoints
 
 | Route | Purpose |
 |---|---|
 | `/` | the bundled UI |
 | `/api/tree` | `{name, root, is_git, branch, files:[...]}` |
-| `/api/meta` | repo metadata: branch, tags, license, CI, languages, last commit |
+| `/api/meta` | repo metadata: branch, tags, license, CI, languages, last commit, `ci_status`/`ci_workflows` |
 | `/api/status` | working-tree changes from `git status --porcelain` |
 | `/api/log` | recent commits (hash, author, when, subject) |
 | `/api/diff?path=` | a unified diff of one file against `HEAD` |
@@ -125,7 +142,8 @@ through a safe whitelist (see below).
 README badges are usually remote images. Since `gander` never touches the
 network, a remote image is shown as a small chip carrying its alt text instead
 of a broken image; a linked badge such as `[![CI](badge.svg)](url)` still links
-out, and relative images render normally.
+out, and relative images render normally. With `--ci-status`, a badge whose URL
+names a known workflow is shown in the workflow's pass/fail colour (see above).
 
 Raw HTML is supported too, with a safe whitelist: a centred logo such as
 `<p align="center"><img src="logo.svg" width="128"></p>`, `<details>`,
@@ -148,6 +166,8 @@ one block; a light palette is included there, commented out.
 - Raw HTML in Markdown is sanitised against a tag/attribute whitelist; scripts,
   event handlers and `javascript:` URLs are removed.
 - `--token` gates access behind a cookie for shared machines.
+- The only outbound network request is the opt-in `--ci-status`, which shells
+  out to the authenticated `gh` CLI; everything else stays local.
 
 ## Roadmap
 
