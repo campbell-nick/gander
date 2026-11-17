@@ -867,8 +867,9 @@ static void open_browser(const char *host, int port, const char *token) {
 
 /* gander only previews git repositories. Point it at a plain folder and the
  * goose says its piece, then we bow out without serving anything. */
-static void note_no_git(void) {
+static void note_no_git(const char *path) {
   fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
+  fprintf(stderr, "gander: not a git repository: %s\n", path);
 }
 
 /* A goose never says the same goodbye twice. */
@@ -934,7 +935,7 @@ int server_run(const char *root, const char *web_root, const char *host,
   snprintf(gitdir, sizeof gitdir, "%s/.git", s.root_real);
   struct stat gitst;
   if (stat(gitdir, &gitst) != 0) {
-    note_no_git();
+    note_no_git(s.root_real);
     return 1;
   }
 
