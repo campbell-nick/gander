@@ -868,8 +868,10 @@ static void open_browser(const char *host, int port, const char *token) {
 /* gander only previews git repositories. Point it at a plain folder and the
  * goose says its piece, then we bow out without serving anything. */
 static void note_no_git(const char *path) {
-  fprintf(stderr, "gander: This isn't a grain, it's a bread!\n");
-  fprintf(stderr, "gander: not a git repository: %s\n", path);
+  fprintf(stderr,
+          "gander: This isn't a grain, it's a bread! (not a git repository: "
+          "%s)\n",
+          path);
 }
 
 /* A goose never says the same goodbye twice. */
