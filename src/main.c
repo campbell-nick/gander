@@ -23,6 +23,8 @@ static void usage(FILE *out) {
           "  --host <addr>     address to bind (default: 127.0.0.1)\n"
           "  --web-root <dir>  directory holding the bundled UI assets\n"
           "  --token <str>     require this token to open the UI\n"
+          "  --config <file>   read settings from this file instead of\n"
+          "                    ~/.config/gander/config\n"
           "  --no-open         do not launch a browser\n"
           "  --watch <mode>    what live reload reacts to: commit (default),\n"
           "                    all (every file change) or off\n"
@@ -34,7 +36,11 @@ static void usage(FILE *out) {
           "\n"
           "By default the UI refreshes only when you commit (or switch branch,\n"
           "tag or fetch); use --watch all to also refresh as you edit files.\n"
-          "CI status is off by default, keeping gander fully offline.\n",
+          "CI status is off by default, keeping gander fully offline.\n"
+          "\n"
+          "Settings can also live in ~/.config/gander/config (override with\n"
+          "--config or $GANDER_CONFIG); a style.css beside it is layered over\n"
+          "the bundled theme. Command-line options win.\n",
           GANDER_VERSION);
 }
 
@@ -110,13 +116,20 @@ static void find_web_root(const char *override, char *out, size_t outsz) {
 
 int main(int argc, char **argv) {
   const char *path = ".";
-  const char *host = "127.0.0.1";
-  const char *web_override = NULL;
-  const char *token = NULL;
-  int port = 0;
-  int do_open = 1;
-  int watch_scope = WATCH_COMMIT;
-  int ci_status = 0;
+  const char *config_path = NULL;
+
+  /* First pass: locate --config so the file is read before the other options,
+   * which then override whatever it set. */
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--config") == 0 && i + 1 < argc)
+      config_path = argv[i + 1];
+    else if (strncmp(argv[i], "--config=", 9) == 0)
+      config_path = argv[i] + 9;
+  }
+
+  struct gander_config cfg;
+  config_init(&cfg);
+  config_load(&cfg, config_path);
 
   for (int i = 1; i < argc; i++) {
     const char *a = argv[i];
@@ -126,34 +139,38 @@ int main(int argc, char **argv) {
     } else if (strcmp(a, "-V") == 0 || strcmp(a, "--version") == 0) {
       printf("gander %s\n", GANDER_VERSION);
       return 0;
+    } else if (strcmp(a, "--config") == 0 && i + 1 < argc) {
+      i++; /* already applied above */
+    } else if (strncmp(a, "--config=", 9) == 0) {
+      /* already applied above */
     } else if (strcmp(a, "--port") == 0 && i + 1 < argc) {
-      port = atoi(argv[++i]);
+      cfg.port = atoi(argv[++i]);
     } else if (strncmp(a, "--port=", 7) == 0) {
-      port = atoi(a + 7);
+      cfg.port = atoi(a + 7);
     } else if (strcmp(a, "--host") == 0 && i + 1 < argc) {
-      host = argv[++i];
+      snprintf(cfg.host, sizeof cfg.host, "%s", argv[++i]);
     } else if (strncmp(a, "--host=", 7) == 0) {
-      host = a + 7;
+      snprintf(cfg.host, sizeof cfg.host, "%s", a + 7);
     } else if (strcmp(a, "--web-root") == 0 && i + 1 < argc) {
-      web_override = argv[++i];
+      snprintf(cfg.web_root, sizeof cfg.web_root, "%s", argv[++i]);
     } else if (strncmp(a, "--web-root=", 11) == 0) {
-      web_override = a + 11;
+      snprintf(cfg.web_root, sizeof cfg.web_root, "%s", a + 11);
     } else if (strcmp(a, "--token") == 0 && i + 1 < argc) {
-      token = argv[++i];
+      snprintf(cfg.token, sizeof cfg.token, "%s", argv[++i]);
     } else if (strncmp(a, "--token=", 8) == 0) {
-      token = a + 8;
+      snprintf(cfg.token, sizeof cfg.token, "%s", a + 8);
     } else if (strcmp(a, "--no-open") == 0) {
-      do_open = 0;
+      cfg.do_open = 0;
     } else if (strcmp(a, "--no-watch") == 0) {
-      watch_scope = WATCH_OFF;
+      cfg.watch_scope = WATCH_OFF;
     } else if (strcmp(a, "--watch") == 0 && i + 1 < argc) {
-      watch_scope = parse_watch(argv[++i]);
+      cfg.watch_scope = parse_watch(argv[++i]);
     } else if (strncmp(a, "--watch=", 8) == 0) {
-      watch_scope = parse_watch(a + 8);
+      cfg.watch_scope = parse_watch(a + 8);
     } else if (strcmp(a, "--ci-status") == 0) {
-      ci_status = 1;
+      cfg.ci_status = 1;
     } else if (strcmp(a, "--no-ci-status") == 0) {
-      ci_status = 0;
+      cfg.ci_status = 0;
     } else if (a[0] == '-' && a[1] != '\0') {
       fprintf(stderr, "gander: unknown option: %s\n", a);
       usage(stderr);
@@ -173,8 +190,10 @@ int main(int argc, char **argv) {
   }
 
   char web_root[PATH_MAX + 64];
-  find_web_root(web_override, web_root, sizeof web_root);
+  find_web_root(cfg.web_root[0] ? cfg.web_root : NULL, web_root,
+                sizeof web_root);
 
-  return server_run(path, web_root, host, port, do_open, token, watch_scope,
-                    ci_status);
+  return server_run(path, web_root, cfg.host, cfg.port, cfg.do_open,
+                    cfg.token[0] ? cfg.token : NULL, cfg.watch_scope,
+                    cfg.ci_status, cfg.css[0] ? cfg.css : NULL);
 }

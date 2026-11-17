@@ -220,11 +220,37 @@ void highlight_to_html(struct strbuf *out, const char *text, size_t len,
 void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
                             const char *lang);
 
+/* -------------------------------------------------------------- config --- */
+
+/* User configuration, read from an optional config file. Every field has a
+ * built-in default; command-line options override anything set here. */
+struct gander_config {
+  int port;            /* 0 = pick a free port */
+  int do_open;         /* launch a browser on start */
+  int watch_scope;     /* enum watch_scope */
+  int ci_status;       /* opt in to the network `gh` lookup */
+  char host[256];
+  char web_root[4096];
+  char token[512];
+  char css[4096];      /* user stylesheet layered over the bundled one, or "" */
+  char path[4096];     /* config file actually read, or "" */
+};
+
+/* Fill cfg with built-in defaults (including the default user stylesheet). */
+void config_init(struct gander_config *cfg);
+
+/* Read settings from explicit_path, else $GANDER_CONFIG, else
+ * $XDG_CONFIG_HOME/gander/config, else $HOME/.config/gander/config. A missing
+ * file is not an error; a malformed line is warned about and skipped. */
+void config_load(struct gander_config *cfg, const char *explicit_path);
+
 /* -------------------------------------------------------------- server --- */
 /* Run the HTTP server until interrupted. root is the directory being
- * previewed; web_root holds the bundled UI assets. */
+ * previewed; web_root holds the bundled UI assets. user_css, when non-empty,
+ * is a stylesheet appended after the bundled style.css so it can override the
+ * theme. */
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
-               int ci_status);
+               int ci_status, const char *user_css);
 
 #endif /* GANDER_H */

@@ -12,7 +12,7 @@ CFLAGS  ?= -O2
 CFLAGS  += -std=c11 -Wall -Wextra -D_GNU_SOURCE
 LDFLAGS ?=
 
-SRC := src/util.c src/walk.c src/watch.c src/md.c src/html.c src/highlight.c src/repo.c src/server.c src/main.c
+SRC := src/util.c src/walk.c src/watch.c src/md.c src/html.c src/highlight.c src/repo.c src/server.c src/config.c src/main.c
 OBJ := $(SRC:.c=.o)
 BIN := gander
 

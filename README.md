@@ -68,6 +68,7 @@ gander [path] [options]
   --host <addr>     address to bind (default: 127.0.0.1)
   --web-root <dir>  directory holding the bundled UI assets
   --token <str>     require this token to open the UI
+  --config <file>   read settings from this file instead of the default
   --no-open         do not launch a browser
   --watch <mode>    what live reload reacts to: commit (default), all or off
   --no-watch        disable live reload (same as --watch off)
@@ -79,6 +80,47 @@ gander [path] [options]
 
 The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 `<exe-dir>/web`, `<exe-dir>/../share/gander/web`, then `./web`.
+
+## Configuration
+
+Settings can live in a config file instead of on the command line. It is read
+from the first of these that exists:
+
+1. `--config <file>` (or `$GANDER_CONFIG`)
+2. `$XDG_CONFIG_HOME/gander/config`
+3. `$HOME/.config/gander/config`
+
+It is plain `key = value` lines; blank lines and `#`/`;` comments are ignored,
+and a value may be quoted. A missing file is fine — every key has a built-in
+default — and an unknown key is warned about and skipped. Command-line options
+always win over the file.
+
+```ini
+# ~/.config/gander/config
+port      = 8080          # 0 picks a free port (default)
+host      = 127.0.0.1     # interface to bind
+open      = true          # launch a browser on start
+watch     = commit        # commit (default), all or off
+ci-status = false         # opt in to the network `gh` lookup
+web-root  = /usr/share/gander/web
+token     = hunter2       # require this token to open the UI
+style     = /etc/gander/style.css
+```
+
+### User stylesheet
+
+A `style.css` next to the config file is appended after the bundled
+`web/style.css`, so a short override is enough to re-skin the UI — no need to
+fork the theme. For example, to square everything off:
+
+```css
+/* ~/.config/gander/style.css */
+:root { --radius: 0; --radius-sm: 0; --radius-pill: 0; }
+```
+
+The bundled theme exposes every colour *and* its corner radii as variables, so
+you can change just a few values and leave the rest alone. Use the `style` key
+above if your override lives somewhere else.
 
 ## Live reload
 
@@ -130,6 +172,7 @@ working. Without the flag, `gander` never touches the network.
 | `/api/code?path=` | source highlighted to an HTML code blob |
 | `/raw/<path>` | a file from the previewed directory (correct MIME, byte ranges) |
 | `/api/events` | Server-Sent Events for live reload |
+| `/style.css` | the bundled theme plus your user `style.css`, if any |
 
 ## Markdown support
 
@@ -155,9 +198,11 @@ like Markdown links.
 
 ## Theme
 
-gander ships a dark theme (GitHub Dark) by default. Every colour is a CSS
-variable at the top of `web/style.css`, so you can re-theme it by editing that
-one block; a light palette is included there, commented out.
+gander ships a dark theme (GitHub Dark) by default. Every colour *and* corner
+radius is a CSS variable at the top of `web/style.css`, so you can re-theme it
+by editing that one block; a light palette is included there, commented out.
+To re-skin without touching the bundled file, drop a `style.css` in your config
+directory — see [Configuration](#configuration).
 
 ## Security
 

@@ -52,6 +52,7 @@ struct server {
   struct watcher *w;
   struct conn *conns;
   int nconns;
+  char user_css[4096];
 };
 
 static volatile sig_atomic_t g_stop = 0;
@@ -548,6 +549,33 @@ static void serve_web(struct server *s, struct conn *c, const char *name) {
   serve_file(c, full, mime_type(name), NULL);
 }
 
+static void append_file(struct strbuf *b, const char *path) {
+  FILE *f = fopen(path, "rb");
+  if (!f)
+    return;
+  char buf[8192];
+  size_t got;
+  while ((got = fread(buf, 1, sizeof buf, f)) > 0)
+    sb_putn(b, buf, got);
+  fclose(f);
+}
+
+/* The bundled theme, with the user's style.css (if any) layered on top so a
+ * small override file is enough to re-skin gander. */
+static void serve_style(struct server *s, struct conn *c) {
+  struct strbuf b;
+  sb_init(&b);
+  char full[4096];
+  if (resolve_under(s->web_real, "style.css", full, sizeof full))
+    append_file(&b, full);
+  if (s->user_css[0]) {
+    sb_puts(&b, "\n/* ---- user style.css ---- */\n");
+    append_file(&b, s->user_css);
+  }
+  resp_buf(c, "text/css; charset=utf-8", &b);
+  sb_free(&b);
+}
+
 /* -------------------------------------------------------------- routing ----- */
 
 static void handle_request(struct server *s, struct conn *c) {
@@ -645,7 +673,7 @@ static void handle_request(struct server *s, struct conn *c) {
     return;
   }
   if (strcmp(decoded, "/style.css") == 0) {
-    serve_web(s, c, "style.css");
+    serve_style(s, c);
     return;
   }
   if (strcmp(decoded, "/app.js") == 0) {
@@ -838,7 +866,7 @@ static void open_browser(const char *host, int port, const char *token) {
 
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, const char *token, int watch_scope,
-               int ci_status) {
+               int ci_status, const char *user_css) {
   /* Never let git take its optional locks. Without this, `git status` (which
    * we run to build the tree badges and the home card) refreshes and rewrites
    * .git/index, the watcher sees that as a change, the page refetches status,
@@ -852,6 +880,8 @@ int server_run(const char *root, const char *web_root, const char *host,
   struct server s;
   memset(&s, 0, sizeof s);
   s.token = token;
+  if (user_css && user_css[0])
+    snprintf(s.user_css, sizeof s.user_css, "%s", user_css);
 
   if (!realpath(root, s.root_real)) {
     fprintf(stderr, "gander: cannot resolve %s: %s\n", root, strerror(errno));
@@ -926,6 +956,8 @@ int server_run(const char *root, const char *web_root, const char *host,
   else
     printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");
   printf("  ci:     %s\n", ci_status ? "gh (network)" : "off");
+  if (s.user_css[0])
+    printf("  style:  %s\n", s.user_css);
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
 
