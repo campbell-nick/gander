@@ -53,9 +53,12 @@ QApplication *ensure_app() {
     return nullptr;
   }
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+  /* Qt keeps a reference to argc (QCoreApplicationPrivate::argc is `int &`),
+   * so argc and argv must outlive the QApplication. Locals here would leave a
+   * dangling reference that QtWebEngine later dereferences via arguments(). */
+  static int argc = 1;
   static char name[] = "gander";
   static char *argv[] = {name, nullptr};
-  int argc = 1;
   app = new QApplication(argc, argv);
   return app;
 }
