@@ -19,6 +19,7 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QIcon>
 #include <QString>
 #include <QUrl>
 #include <QWebEngineView>
@@ -73,8 +74,8 @@ struct webview_win {
 
 int webview_available(void) { return 1; }
 
-struct webview_win *webview_open(const char *url, const char *title, int w,
-                                 int h) {
+struct webview_win *webview_open(const char *url, const char *title,
+                                 const char *icon, int w, int h) {
   QApplication *app = ensure_app();
   if (!app)
     return nullptr;
@@ -89,6 +90,15 @@ struct webview_win *webview_open(const char *url, const char *title, int w,
   wv->view = view;
   view->setWindowTitle(title ? QString::fromUtf8(title)
                              : QStringLiteral("gander"));
+  if (icon && *icon) {
+    /* The bundled logo is an SVG; this needs Qt's SVG image plugin. A null
+     * icon (plugin or file missing) just leaves the default. */
+    QIcon logo(QString::fromUtf8(icon));
+    if (!logo.isNull()) {
+      app->setWindowIcon(logo);
+      view->setWindowIcon(logo);
+    }
+  }
   view->resize(w > 0 ? w : 1100, h > 0 ? h : 800);
   view->load(QUrl(QString::fromUtf8(url)));
   view->show();

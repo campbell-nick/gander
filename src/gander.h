@@ -234,9 +234,11 @@ int webview_available(void);
 
 /* Open a window showing url. Returns NULL when it cannot be opened (no display,
  * or a build without the webview). title and w/h are hints for the window
- * manager; NULL/0 mean "gander" and a sensible default size. */
-struct webview_win *webview_open(const char *url, const char *title, int w,
-                                 int h);
+ * manager; NULL/0 mean "gander" and a sensible default size. icon, when
+ * non-NULL, is a path to the window icon (the bundled logo); a backend that
+ * cannot load it just keeps its default. */
+struct webview_win *webview_open(const char *url, const char *title,
+                                 const char *icon, int w, int h);
 
 /* Process pending toolkit events without blocking. Returns 1 while the window
  * is still open, 0 once it has been closed (so the caller can stop). Safe on

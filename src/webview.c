@@ -37,8 +37,8 @@ static void on_destroy(GtkWidget *widget, gpointer data) {
 
 int webview_available(void) { return 1; }
 
-struct webview_win *webview_open(const char *url, const char *title, int w,
-                                 int h) {
+struct webview_win *webview_open(const char *url, const char *title,
+                                 const char *icon, int w, int h) {
   /* gtk_init_check, not gtk_init: a missing display should be a clean "no",
    * not a call that terminates the process. */
   if (!gtk_init_check(NULL, NULL)) {
@@ -54,6 +54,15 @@ struct webview_win *webview_open(const char *url, const char *title, int w,
   gtk_window_set_title(GTK_WINDOW(wv->window), title ? title : "gander");
   gtk_window_set_default_size(GTK_WINDOW(wv->window), w > 0 ? w : 1100,
                               h > 0 ? h : 800);
+  if (icon && icon[0]) {
+    /* The bundled logo is an SVG, so this needs the gdk-pixbuf SVG loader; if
+     * it or the file is missing, keep the toolkit's default icon. */
+    GError *err = NULL;
+    if (!gtk_window_set_icon_from_file(GTK_WINDOW(wv->window), icon, &err)) {
+      if (err)
+        g_error_free(err);
+    }
+  }
   g_signal_connect(wv->window, "destroy", G_CALLBACK(on_destroy), wv);
 
   wv->view = webkit_web_view_new();
@@ -98,10 +107,11 @@ void webview_destroy(struct webview_win *wv) {
 
 int webview_available(void) { return 0; }
 
-struct webview_win *webview_open(const char *url, const char *title, int w,
-                                 int h) {
+struct webview_win *webview_open(const char *url, const char *title,
+                                 const char *icon, int w, int h) {
   (void)url;
   (void)title;
+  (void)icon;
   (void)w;
   (void)h;
   return NULL;

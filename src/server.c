@@ -1158,7 +1158,10 @@ int server_run(const char *root, const char *web_root, const char *host,
 
   if (do_open) {
     if (do_webview && webview_available()) {
-      wv = webview_open(url, "gander", 1100, 800);
+      /* Use the bundled logo as the window icon, next to the served assets. */
+      char icon[4200];
+      snprintf(icon, sizeof icon, "%s/logo.svg", s.web_real);
+      wv = webview_open(url, "gander", icon, 1100, 800);
       if (!wv)
         fprintf(stderr,
                 "gander: could not open the embedded webview; "
