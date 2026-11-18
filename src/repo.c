@@ -477,6 +477,32 @@ static int run_capture_buf(const char *cmd, struct strbuf *out) {
   return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
+/* Like run_capture_buf, but stops storing once `cap` bytes have been read.
+ * The pipe is still drained to EOF so the child never blocks on a full pipe.
+ * Sets *truncated when output had to be dropped. */
+static void run_capture_capped(const char *cmd, struct strbuf *out, size_t cap,
+                               int *truncated) {
+  *truncated = 0;
+  FILE *p = popen(cmd, "r");
+  if (!p)
+    return;
+  char buf[8192];
+  size_t got;
+  while ((got = fread(buf, 1, sizeof buf, p)) > 0) {
+    if (out->len >= cap) {
+      *truncated = 1;
+      continue;
+    }
+    size_t room = cap - out->len;
+    if (got > room) {
+      *truncated = 1;
+      got = room;
+    }
+    sb_putn(out, buf, got);
+  }
+  pclose(p);
+}
+
 static void normalize_status(const char *xy, char *out, size_t outsz) {
   char x = xy[0], y = xy[1];
   const char *s = "modified";
@@ -662,6 +688,99 @@ void repo_log_json(const char *root, struct strbuf *out, int max) {
   }
   sb_free(&raw);
   sb_puts(out, "]");
+}
+
+/* ---------------------------------------------------------------- search --- */
+
+/* Search the working tree with `git grep` and emit a JSON object. Each record
+ * from `git grep -z` is "path\0line\0col\0text\n"; the -z form keeps paths with
+ * odd characters intact. A non-zero exit just means "no matches". */
+void repo_search_json(const char *root, const char *query, int limit,
+                      struct strbuf *out) {
+  if (limit < 1)
+    limit = 100;
+  if (limit > 500)
+    limit = 500;
+
+  sb_puts(out, "{\"query\":");
+  sb_put_json_string(out, query);
+  sb_puts(out, ",\"results\":[");
+
+  char gitdir[4400];
+  snprintf(gitdir, sizeof gitdir, "%s/.git", root);
+  if (!file_exists(gitdir) || !query[0]) {
+    sb_puts(out, "],\"truncated\":false}");
+    return;
+  }
+
+  char q[4400], qp[4200];
+  shell_quote(root, q, sizeof q);
+  shell_quote(query, qp, sizeof qp);
+  char cmd[9200];
+  snprintf(cmd, sizeof cmd,
+           "git -C %s --no-pager grep --no-color -z --column -n -I -i "
+           "--untracked -e %s 2>/dev/null",
+           q, qp);
+
+  struct strbuf raw;
+  sb_init(&raw);
+  int cut = 0;
+  run_capture_capped(cmd, &raw, 2 * 1024 * 1024, &cut);
+
+  int first = 1, truncated = cut, count = 0;
+  const char *p = raw.buf, *end = raw.buf + raw.len;
+  while (p < end) {
+    const char *z1 = memchr(p, '\0', (size_t)(end - p));
+    if (!z1)
+      break;
+    const char *line_s = z1 + 1;
+    const char *z2 = memchr(line_s, '\0', (size_t)(end - line_s));
+    if (!z2)
+      break;
+    const char *col_s = z2 + 1;
+    const char *z3 = memchr(col_s, '\0', (size_t)(end - col_s));
+    if (!z3)
+      break;
+    const char *text_s = z3 + 1;
+    const char *nl = memchr(text_s, '\n', (size_t)(end - text_s));
+    const char *text_e = nl ? nl : end;
+
+    if (count >= limit) {
+      truncated = 1;
+      break;
+    }
+
+    char path[4096], text[4096];
+    size_t pl = (size_t)(z1 - p);
+    if (pl >= sizeof path)
+      pl = sizeof path - 1;
+    memcpy(path, p, pl);
+    path[pl] = '\0';
+    size_t tl = (size_t)(text_e - text_s);
+    if (tl >= sizeof text)
+      tl = sizeof text - 1;
+    memcpy(text, text_s, tl);
+    text[tl] = '\0';
+
+    if (!first)
+      sb_putc(out, ',');
+    first = 0;
+    count++;
+    sb_puts(out, "{\"path\":");
+    sb_put_json_string(out, path);
+    sb_puts(out, ",\"line\":");
+    sb_puts(out, line_s);
+    sb_puts(out, ",\"col\":");
+    sb_puts(out, col_s);
+    sb_puts(out, ",\"text\":");
+    sb_put_json_string(out, text);
+    sb_putc(out, '}');
+
+    p = nl ? nl + 1 : end;
+  }
+  sb_free(&raw);
+
+  sb_printf(out, "],\"truncated\":%s}", truncated ? "true" : "false");
 }
 
 /* ----------------------------------------------------------------- diff --- */

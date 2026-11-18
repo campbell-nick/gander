@@ -386,6 +386,15 @@ static void api_log(struct server *s, struct conn *c) {
   sb_free(&b);
 }
 
+static void api_search(struct server *s, struct conn *c, const char *q,
+                       int limit) {
+  struct strbuf b;
+  sb_init(&b);
+  repo_search_json(s->root_real, q, limit, &b);
+  resp_buf(c, "application/json; charset=utf-8", &b);
+  sb_free(&b);
+}
+
 static void api_diff(struct server *s, struct conn *c, const char *rel) {
   if (!rel_is_safe(rel)) {
     resp_error(c, 404, "Not Found");
@@ -700,6 +709,17 @@ static void handle_request(struct server *s, struct conn *c) {
   }
   if (strcmp(decoded, "/api/log") == 0) {
     api_log(s, c);
+    return;
+  }
+  if (strcmp(decoded, "/api/search") == 0) {
+    char sq[4096] = "";
+    if (!query_param(query, "q", sq, sizeof sq) || !sq[0]) {
+      resp_error(c, 400, "Bad Request");
+      return;
+    }
+    char lim[32] = "";
+    int limit = query_param(query, "limit", lim, sizeof lim) ? atoi(lim) : 100;
+    api_search(s, c, sq, limit);
     return;
   }
   if (strcmp(decoded, "/api/events") == 0) {

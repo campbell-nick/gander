@@ -11,6 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `--app` opens the UI in a chromeless Chromium-family window instead of a
   browser tab, using a throwaway profile; it falls back to a normal tab when no
   such browser is found. Also settable as `app = true` in the config file.
+- Content search: press `/` to search file contents with `git grep --untracked`
+  and click a hit to open the file at that line (`/api/search`).
 
 ## [0.1.0] - 2026-11-18
 

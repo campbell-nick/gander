@@ -61,6 +61,38 @@ code=$(curl -s -o "$TMPROOT/body" -w '%{http_code}' "$base/raw/README.md")
 assert_eq "/raw is 200" 200 "$code"
 assert_contains "/raw serves the file bytes" "$(cat "$TMPROOT/body")" "quick brown fox"
 
+# --- content search -----------------------------------------------------------
+
+printf 'find ME_PLEASE in here\n' >"$repo/needle.txt"
+printf 'also ME_PLEASE here\n' >>"$repo/README.md"
+
+code=$(curl -s -o "$TMPROOT/body" -w '%{http_code}' "$base/api/search?q=ME_PLEASE")
+assert_eq "/api/search is 200" 200 "$code"
+body=$(cat "$TMPROOT/body")
+assert_contains "search finds tracked matches" "$body" "README.md"
+assert_contains "search finds untracked matches" "$body" "needle.txt"
+assert_contains "search echoes the query" "$body" '"query":"ME_PLEASE"'
+if command -v python3 >/dev/null 2>&1; then
+  if python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$TMPROOT/body" 2>/dev/null; then
+    pass "/api/search is valid JSON"
+  else
+    fail "/api/search is valid JSON" "$body"
+  fi
+
+  code=$(curl -s -o "$TMPROOT/body" -w '%{http_code}' "$base/api/search?q=ME_PLEASE&limit=1")
+  n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["results"]))' "$TMPROOT/body")
+  assert_eq "search honours limit" 1 "$n"
+  t=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["truncated"])' "$TMPROOT/body")
+  assert_eq "search reports truncation" "True" "$t"
+fi
+
+code=$(curl -s -o "$TMPROOT/body" -w '%{http_code}' "$base/api/search?q=zzz_no_such_needle")
+assert_eq "search with no matches is 200" 200 "$code"
+assert_contains "search with no matches is empty" "$(cat "$TMPROOT/body")" '"results":[]'
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/search")
+assert_eq "search without q is 400" 400 "$code"
+
 # --- errors and confinement ---------------------------------------------------
 
 code=$(curl -s -o /dev/null -w '%{http_code}' "$base/nope")

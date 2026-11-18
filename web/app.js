@@ -31,13 +31,17 @@ const state = {
   expanded: new Set(),
   selected: null,
   filter: "",
+  query: "",          // content-search query
+  searchResults: null,
   meta: null,
   isGit: false,
   status: new Map(), // path -> { path, code, status }
   log: [],
-  view: "preview", // "preview" | "git"
+  view: "preview", // "preview" | "git" | "search"
   mode: "content", // "content" | "diff" (what the preview pane shows)
 };
+
+let jumpLine = 0; // line to scroll to after the next code preview
 
 /* ------------------------------------------------------------- helpers --- */
 
@@ -411,6 +415,104 @@ function openGit() {
   loadLog();
 }
 
+/* ------------------------------------------------------------- search ---- */
+
+/* Escape text, wrapping every case-insensitive occurrence of q in <mark>. */
+function highlightText(text, q) {
+  if (!q) return esc(text);
+  const lower = text.toLowerCase();
+  const ql = q.toLowerCase();
+  if (!ql) return esc(text);
+  let out = "", i = 0;
+  for (;;) {
+    const j = lower.indexOf(ql, i);
+    if (j < 0) {
+      out += esc(text.slice(i));
+      break;
+    }
+    out += esc(text.slice(i, j)) + "<mark>" + esc(text.slice(j, j + ql.length)) + "</mark>";
+    i = j + ql.length;
+  }
+  return out;
+}
+
+function renderSearch() {
+  const pane = $("preview");
+  state.view = "search";
+  state.selected = null;
+  const r = state.searchResults;
+  if (!r) {
+    pane.innerHTML = head("Search") + '<div class="preview-body"><p class="clean-note">Searching…</p></div>';
+    return;
+  }
+  const meta = r.results.length
+    ? `${r.results.length}${r.truncated ? "+" : ""} result${r.results.length === 1 ? "" : "s"}`
+    : "no matches";
+  if (!r.results.length) {
+    pane.innerHTML =
+      head(`Search: ${r.query}`, meta) +
+      `<div class="preview-body"><p class="clean-note">No matches for “${esc(r.query)}”.</p></div>`;
+    return;
+  }
+  const rows = r.results
+    .map(
+      (res) =>
+        `<li class="hit" data-action="hit" data-path="${esc(res.path)}" data-line="${res.line}">` +
+        `<span class="hit-path">${esc(res.path)}<span class="hit-line">:${res.line}</span></span>` +
+        `<span class="hit-text">${highlightText(res.text, r.query)}</span></li>`
+    )
+    .join("");
+  pane.innerHTML =
+    head(`Search: ${r.query}`, meta) +
+    `<div class="preview-body"><ul class="hitlist">${rows}</ul></div>`;
+  pane.scrollTop = 0;
+}
+
+async function runSearch(q) {
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=100`);
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    if (state.query !== q) return; // a newer query superseded this one
+    state.searchResults = data;
+  } catch (_) {
+    if (state.query !== q) return;
+    state.searchResults = { query: q, results: [], truncated: false };
+  }
+  if (state.view === "search") renderSearch();
+}
+
+let searchTimer = 0;
+function onSearchInput() {
+  const q = $("search").value.trim();
+  state.query = q;
+  clearTimeout(searchTimer);
+  if (q.length < 2) {
+    state.searchResults = null;
+    if (state.view === "search") showHome();
+    return;
+  }
+  state.searchResults = null;
+  renderSearch();
+  searchTimer = setTimeout(() => runSearch(q), 160);
+}
+
+/* Scroll the preview pane to a source line (best effort: works for the code
+ * preview, whose gutter keeps every line the same height). */
+function scrollToLine(line) {
+  const pane = $("preview");
+  const pre = pane.querySelector(".codecol pre");
+  if (!pre || !line) return;
+  const lh = parseFloat(getComputedStyle(pre).lineHeight) || 18;
+  const top = pre.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+  pane.scrollTop = Math.max(0, top + (line - 1) * lh - 60);
+}
+
+function openHit(path, line) {
+  jumpLine = line;
+  select(path);
+}
+
 function select(path, mode = "content") {
   state.view = "preview";
   state.selected = path;
@@ -441,6 +543,10 @@ async function showPreview(path, resetScroll) {
     /* Replacing innerHTML keeps the old scroll offset, so set it explicitly:
      * a fresh document starts at the top, a live reload keeps your place. */
     pane.scrollTop = resetScroll ? 0 : keepScroll;
+    if (jumpLine) {
+      scrollToLine(jumpLine);
+      jumpLine = 0;
+    }
   };
 
   try {
@@ -597,6 +703,7 @@ function startEvents() {
     const gitChange = changed.some((p) => p.startsWith(".git/"));
     await Promise.all([loadTree(), loadStatus(), loadMeta()]);
     if (state.view === "git") await loadLog();
+    if (state.view === "search" && state.query.length >= 2) runSearch(state.query);
     const sel = state.selected;
     if (sel && (gitChange || changed.includes(sel) || changed.length === 0)) {
       if (state.mode === "diff") showDiff(sel, false);
@@ -614,6 +721,24 @@ $("filter").addEventListener("input", (e) => {
   renderTree();
 });
 
+$("search").addEventListener("input", onSearchInput);
+
+/* "/" focuses the content search; Escape clears it and returns home. */
+document.addEventListener("keydown", (e) => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  const typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
+  if (e.key === "/" && !typing) {
+    e.preventDefault();
+    $("search").focus();
+  } else if (e.key === "Escape" && e.target === $("search")) {
+    $("search").value = "";
+    state.query = "";
+    state.searchResults = null;
+    $("search").blur();
+    if (state.view === "search") showHome();
+  }
+});
+
 document.querySelector(".brand").addEventListener("click", showHome);
 $("changes-btn").addEventListener("click", openGit);
 
@@ -626,6 +751,7 @@ $("preview").addEventListener("click", (e) => {
     else if (action === "diff" && state.selected) showDiff(state.selected, true);
     else if (action === "file" && state.selected) showPreview(state.selected, true);
     else if (action === "select" && t.dataset.path) select(t.dataset.path, "diff");
+    else if (action === "hit" && t.dataset.path) openHit(t.dataset.path, parseInt(t.dataset.line, 10));
     return;
   }
   /* A relative link in Markdown points at /raw/<path>; preview it here rather

@@ -33,6 +33,8 @@ same minimal C, a different view of your work.
   seeking) and audio.
 - **Code and text** preview with GitHub-style syntax highlighting and a
   line-number gutter.
+- **Content search**: press `/` to full-text search the working tree with
+  `git grep`; click a hit to open the file at that line.
 - **Repo home card**: branch, latest tag (as the release), whether CI is
   configured, license, commit and file counts, a language breakdown, the last
   commit and the rendered README below — all read from disk, never the network.
@@ -185,6 +187,18 @@ configured* chip (with the workflow names in its tooltip) or a grey *no CI
 configured* one; README badges are shown as chips too, since a remote image
 can't be fetched offline.
 
+## Search
+
+Press `/` (or use the search box in the top bar) to search file **contents**,
+not just names. The sidebar's filter narrows the file tree; the search box runs
+a full-text search over the working tree and lists every hit as `path:line`
+with the match highlighted. Clicking a hit opens the file and jumps to the line.
+
+Search is backed by `git grep --untracked -I`, so it respects `.gitignore`,
+skips binary files, includes untracked files, and is case-insensitive. Results
+are capped (100 by default, 500 max) and the response says when it truncated.
+Nothing is indexed and nothing leaves the machine.
+
 ## Endpoints
 
 | Route | Purpose |
@@ -194,6 +208,7 @@ can't be fetched offline.
 | `/api/meta` | repo metadata: branch, tags, license, CI workflows, languages, last commit |
 | `/api/status` | working-tree changes from `git status --porcelain` |
 | `/api/log` | recent commits (hash, author, when, subject) |
+| `/api/search?q=&limit=` | content search (`git grep`): `{query, truncated, results:[{path, line, col, text}]}` |
 | `/api/diff?path=` | a unified diff of one file against `HEAD` |
 | `/api/md?path=` | Markdown rendered to an HTML fragment |
 | `/api/code?path=` | source highlighted to an HTML code blob |
@@ -250,9 +265,10 @@ directory — see [Configuration](#configuration).
 - **M5** git panel: status colours, branch, log, per-file diff — *done*
 - **M6** repo home card — *done*
 - **M7** `--app` chromeless window (Chromium family) — *done*
+- **M8** content search over the working tree — *done*
 
-Planned: content search, a `gander(1)` man page, a portable (non-Linux)
-live-reload backend, and an optional embedded webview.
+Planned: a `gander(1)` man page, a portable (non-Linux) live-reload backend,
+and an optional embedded webview.
 
 ## License
 

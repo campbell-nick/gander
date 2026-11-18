@@ -186,6 +186,13 @@ void repo_status_json(struct strbuf *out, const struct statuslist *sl);
 /* Serialise up to max recent commits as a JSON array. */
 void repo_log_json(const char *root, struct strbuf *out, int max);
 
+/* Search the working tree for query with `git grep` and serialise the hits as
+ * {"query":...,"truncated":bool,"results":[{"path":..,"line":N,"col":N,
+ * "text":..}]}. Case-insensitive, includes untracked files, skips binaries.
+ * limit caps the number of results (default 100, max 500). */
+void repo_search_json(const char *root, const char *query, int limit,
+                      struct strbuf *out);
+
 /* Render the per-file unified diff for rel as an HTML fragment (GitHub-style
  * rows with old/new line gutters). Untracked files are shown as all-additions.
  * Returns 1 when something was rendered, 0 when there is nothing to show. */
