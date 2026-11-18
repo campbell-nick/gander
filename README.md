@@ -42,6 +42,9 @@ same minimal C, a different view of your work.
   status colours in the tree, a recent-commit log, and a per-file unified diff.
 - **Live reload**: refresh only when you commit (or switch branch/tag/fetch),
   keeping your place; `--watch all` also refreshes as you edit files.
+- **Embedded webview** *(experimental)*: an opt-in `make WEBVIEW=1` build lets
+  `--webview` show the UI in gander's own window — WebKitGTK, or Qt WebEngine
+  where GTK is absent — instead of a browser tab.
 - **Offline by construction**: bound to `127.0.0.1`, strict CSP, all assets
   bundled, and no network code at all.
 
