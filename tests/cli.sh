@@ -1,0 +1,122 @@
+#!/bin/sh
+# tests/cli.sh - command-line behaviour: flags, errors, target resolution.
+set -u
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$here/lib.sh"
+
+setup
+
+version=$(sed -n 's/^VERSION := //p' Makefile)
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+real_repo=$(cd "$repo" && pwd -P)
+
+# --- informational flags ------------------------------------------------------
+
+run_gander --version
+assert_eq "--version exits 0" 0 "$STATUS"
+assert_contains "--version names gander" "$OUT" "gander $version"
+assert_contains "--version shows the tagline" "$OUT" "offline previewer"
+
+run_gander --help
+assert_eq "--help exits 0" 0 "$STATUS"
+assert_contains "--help shows Usage" "$OUT" "Usage:"
+
+run_gander
+assert_eq "bare gander exits 0" 0 "$STATUS"
+assert_contains "bare gander shows help" "$OUT" "Usage:"
+
+run_gander --port 8080
+assert_eq "options without a target exit 0" 0 "$STATUS"
+assert_contains "options without a target show help" "$OUT" "Usage:"
+
+# --- errors -------------------------------------------------------------------
+
+run_gander --bogus
+assert_eq "unknown option exits 2" 2 "$STATUS"
+assert_contains "unknown option is reported" "$ERR" "unknown option"
+
+mkdir -p "$TMPROOT/plain"
+run_gander "$TMPROOT/plain"
+assert_eq "non-repo exits 1" 1 "$STATUS"
+assert_contains "non-repo prints the goose line" "$ERR" "This isn't a grain, it's a bread!"
+assert_contains "non-repo gives the reason" "$ERR" "not a git repository:"
+assert_eq "non-repo starts no server" "" "$OUT"
+
+run_gander "$TMPROOT/nope"
+assert_eq "missing dir exits 1" 1 "$STATUS"
+assert_contains "missing dir is reported" "$ERR" "no such directory"
+
+# --- repository detection -----------------------------------------------------
+
+# A .git *file* (a linked worktree) counts as a repository.
+linked="$TMPROOT/linked"
+mkdir -p "$linked"
+printf 'gitdir: %s\n' "$TMPROOT/nowhere" >"$linked/.git"
+if start_server "$linked"; then
+  assert_contains ".git file counts as a repository" "$(cat "$SERVER_OUT")" "root:"
+else
+  fail ".git file counts as a repository" "server did not start"
+fi
+stop_server
+
+# --- [paths] shortcuts --------------------------------------------------------
+
+cfg="$TMPROOT/config"
+export GANDER_CONFIG="$cfg"
+
+printf '[paths]\nNexus = %s\n' "$repo" >"$cfg"
+if start_server Nexus; then
+  assert_contains "alias resolves (exact case)" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "alias resolves (exact case)" "server did not start"
+fi
+stop_server
+
+if start_server nexus; then
+  assert_contains "alias resolves (lower case)" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "alias resolves (lower case)" "server did not start"
+fi
+stop_server
+
+# A leading ~ expands to $HOME.
+old_home=$HOME
+HOME="$TMPROOT/home"
+export HOME
+mkdir -p "$HOME"
+make_repo "$HOME/proj"
+printf '[paths]\ntilde = ~/proj\n' >"$cfg"
+if start_server tilde; then
+  assert_contains "alias expands ~ to \$HOME" "$(cat "$SERVER_OUT")" "root:   $HOME/proj"
+else
+  fail "alias expands ~ to \$HOME" "server did not start"
+fi
+stop_server
+HOME=$old_home
+export HOME
+
+# An alias pointing at a missing directory is a clean error.
+printf '[paths]\nBroken = %s\n' "$TMPROOT/nope" >"$cfg"
+run_gander Broken
+assert_eq "alias to missing dir exits 1" 1 "$STATUS"
+assert_contains "alias to missing dir is reported" "$ERR" "is not a directory"
+
+# A directory on disk wins over an alias of the same name (./web exists here).
+printf '[paths]\nweb = %s\n' "$repo" >"$cfg"
+run_gander web
+assert_contains "existing directory wins over alias" "$ERR" "This isn't a grain"
+
+unset GANDER_CONFIG
+
+# --- current ------------------------------------------------------------------
+
+if start_server_in "$repo" current; then
+  assert_contains "current previews the working directory" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "current previews the working directory" "server did not start"
+fi
+stop_server
+
+report cli

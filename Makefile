@@ -16,7 +16,7 @@ SRC := src/util.c src/walk.c src/watch.c src/md.c src/html.c src/highlight.c src
 OBJ := $(SRC:.c=.o)
 BIN := gander
 
-.PHONY: all clean install uninstall run
+.PHONY: all clean install uninstall run check
 
 all: $(BIN)
 
@@ -28,6 +28,9 @@ $(BIN): $(OBJ)
 
 run: $(BIN)
 	./$(BIN) .
+
+check: $(BIN)
+	./tests/run.sh
 
 install: $(BIN)
 	install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(SHAREDIR)/web
