@@ -55,6 +55,11 @@ make
 ./gander .
 ```
 
+An experimental embedded webview is available as an opt-in build. `make
+WEBVIEW=1` links against WebKitGTK (on GTK3) and lets `--webview` show the UI in
+its own window instead of a browser; it is off by default so a plain `make`
+stays dependency-free.
+
 ## Install
 
 `make install` places the binary in `$PREFIX/bin`, the UI assets in
@@ -85,6 +90,8 @@ gander               show this help
   --config <file>   read settings from this file instead of the default
   --no-open         do not launch a browser
   --app             open a chromeless app window instead of a tab
+  --webview         show the UI in an embedded window (experimental; needs a
+                    build made with 'make WEBVIEW=1')
   --watch <mode>    what live reload reacts to: commit (default), all or off
   --no-watch        disable live reload (same as --watch off)
   -h, --help        show help and exit
@@ -106,6 +113,12 @@ browser data. Firefox has no equivalent, so if no Chromium-family browser is
 found, gander says so and opens a normal tab instead. Set `app = true` in the
 config file to make it the default.
 
+`--webview` is the embedded alternative: rather than handing the URL to a
+browser, gander shows it in its own WebKitGTK window and stops when you close
+that window. It is experimental and only present in a `make WEBVIEW=1` build;
+without one, gander says so and opens a browser instead. Set `webview = true` in
+the config file to make it the default.
+
 ## Configuration
 
 Settings can live in a config file instead of on the command line. It is read
@@ -126,6 +139,7 @@ port      = 8080          # 0 picks a free port (default)
 host      = 127.0.0.1     # interface to bind
 open      = true          # launch a browser on start
 app       = false         # open a chromeless app window (Chromium family)
+webview   = false         # show the UI in an embedded window (WEBVIEW=1 build)
 watch     = commit        # commit (default), all or off
 web-root  = /usr/share/gander/web
 token     = hunter2       # require this token to open the UI
@@ -268,9 +282,9 @@ directory — see [Configuration](#configuration).
 - **M7** `--app` chromeless window (Chromium family) — *done*
 - **M8** content search over the working tree — *done*
 - **M9** `gander(1)` manual page — *done*
+- **M10** experimental embedded webview (WebKitGTK, opt-in) — *done*
 
-Planned: a portable (non-Linux) live-reload backend and an optional embedded
-webview.
+Planned: a portable (non-Linux) live-reload backend.
 
 ## License
 

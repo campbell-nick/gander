@@ -29,6 +29,9 @@
 #define MAX_CONNS 256
 #define REQ_MAX (64 * 1024)
 #define POLL_TIMEOUT_MS 40
+/* With the embedded webview open we drive GTK ourselves, so poll a little more
+ * often to keep the window responsive (~60 Hz). */
+#define WEBVIEW_POLL_MS 16
 
 #define CSP                                                                   \
   "default-src 'none'; img-src 'self' data: blob:; media-src 'self' blob:; "  \
@@ -949,15 +952,23 @@ static void open_in_browser(const char *url) {
   }
 }
 
-static void launch_ui(const char *host, int port, const char *token, int app) {
+/* The URL the UI is reachable at, from the host's point of view. A wildcard
+ * bind address is reported as loopback, which is where a local browser or
+ * webview actually connects. */
+static void ui_url(const char *host, int port, const char *token, char *out,
+                   size_t outsz) {
   const char *h = host;
   if (strcmp(host, "0.0.0.0") == 0 || strcmp(host, "::") == 0)
     h = "127.0.0.1";
-  char url[600];
   if (token && token[0])
-    snprintf(url, sizeof url, "http://%s:%d/?token=%s", h, port, token);
+    snprintf(out, outsz, "http://%s:%d/?token=%s", h, port, token);
   else
-    snprintf(url, sizeof url, "http://%s:%d/", h, port);
+    snprintf(out, outsz, "http://%s:%d/", h, port);
+}
+
+static void launch_ui(const char *host, int port, const char *token, int app) {
+  char url[600];
+  ui_url(host, port, token, url, sizeof url);
 
   if (app) {
     char browser[4096];
@@ -1066,8 +1077,8 @@ static void tty_restore(int fd, const struct termios *saved) {
 }
 
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, int do_app, const char *token,
-               int watch_scope, const char *user_css) {
+               int port, int do_open, int do_app, int do_webview,
+               const char *token, int watch_scope, const char *user_css) {
   /* Never let git take its optional locks. Without this, `git status` (which
    * we run to build the tree badges and the home card) refreshes and rewrites
    * .git/index, the watcher sees that as a change, the page refetches status,
@@ -1134,8 +1145,28 @@ int server_run(const char *root, const char *web_root, const char *host,
   int actual = ntohs(sa.sin_port);
   set_nonblock(lfd);
 
-  if (do_open)
-    launch_ui(host, actual, token, do_app);
+  char url[600];
+  ui_url(host, actual, token, url, sizeof url);
+
+  /* The embedded webview is opt-in at build time. Without it, --webview reports
+   * that and a browser is used instead, so the flag is never a dead end. */
+  struct webview_win *wv = NULL;
+  if (do_webview && !webview_available())
+    fprintf(stderr,
+            "gander: this build has no embedded webview "
+            "(rebuild with 'make WEBVIEW=1')\n");
+
+  if (do_open) {
+    if (do_webview && webview_available()) {
+      wv = webview_open(url, "gander", 1100, 800);
+      if (!wv)
+        fprintf(stderr,
+                "gander: could not open the embedded webview; "
+                "using a browser instead\n");
+    }
+    if (!wv)
+      launch_ui(host, actual, token, do_app);
+  }
 
   s.w = watch_scope != WATCH_OFF ? watch_new(s.root_real, watch_scope) : NULL;
 
@@ -1150,6 +1181,8 @@ int server_run(const char *root, const char *web_root, const char *host,
     printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");
   if (s.user_css[0])
     printf("  style:  %s\n", s.user_css);
+  if (wv)
+    printf("  view:   embedded webview\n");
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
 
@@ -1191,13 +1224,17 @@ int server_run(const char *root, const char *web_root, const char *host,
       nf++;
     }
 
-    int pr = poll(pfds, (nfds_t)nf, POLL_TIMEOUT_MS);
+    int pr = poll(pfds, (nfds_t)nf, wv ? WEBVIEW_POLL_MS : POLL_TIMEOUT_MS);
     if (pr < 0) {
       if (errno == EINTR)
         continue;
       perror("gander: poll");
       break;
     }
+
+    /* Drive the embedded webview; closing its window stops the server. */
+    if (wv && !webview_pump(wv))
+      break;
 
     /* accept new connections */
     if (pfds[0].revents & POLLIN) {
@@ -1260,6 +1297,7 @@ int server_run(const char *root, const char *web_root, const char *host,
   }
 
   tty_restore(tty_q, &tty_saved);
+  webview_destroy(wv);
   farewell();
   while (s.conns)
     conn_free(&s, s.conns);

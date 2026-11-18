@@ -13,7 +13,19 @@ CFLAGS  ?= -O2
 CFLAGS  += -std=c11 -Wall -Wextra -D_GNU_SOURCE
 LDFLAGS ?=
 
-SRC := src/util.c src/walk.c src/watch.c src/md.c src/html.c src/highlight.c src/repo.c src/server.c src/config.c src/main.c
+# Experimental embedded webview (WebKitGTK on GTK3). Off by default, so a plain
+# `make` stays libc-only. Enable it with: make WEBVIEW=1
+WEBVIEW ?= 0
+ifeq ($(WEBVIEW),1)
+  WEBVIEW_CFLAGS := -DGANDER_WEBVIEW $(shell pkg-config --cflags gtk+-3.0 webkit2gtk-4.1 2>/dev/null)
+  WEBVIEW_LIBS   := $(shell pkg-config --libs gtk+-3.0 webkit2gtk-4.1 2>/dev/null)
+  ifeq ($(strip $(WEBVIEW_LIBS)),)
+    $(error WEBVIEW=1 needs the gtk+-3.0 and webkit2gtk-4.1 dev packages; pkg-config could not find them)
+  endif
+  CFLAGS += $(WEBVIEW_CFLAGS)
+endif
+
+SRC := src/util.c src/walk.c src/watch.c src/md.c src/html.c src/highlight.c src/repo.c src/server.c src/config.c src/webview.c src/main.c
 OBJ := $(SRC:.c=.o)
 BIN := gander
 
@@ -22,7 +34,7 @@ BIN := gander
 all: $(BIN)
 
 $(BIN): $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS) $(WEBVIEW_LIBS)
 
 %.o: %.c src/gander.h src/logo.h
 	$(CC) $(CFLAGS) -c -o $@ $<

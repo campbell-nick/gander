@@ -105,6 +105,13 @@ is never touched. If no such browser is found,
 .B gander
 says so and opens a normal tab instead. Firefox has no equivalent.
 .TP
+.B \-\-webview
+Show the UI in an embedded window instead of a browser. This is experimental and
+only present in a build made with
+.BR "make WEBVIEW=1" ,
+which links against WebKitGTK on GTK3. A build without it prints a note and
+opens a browser instead. Closing the embedded window stops the server.
+.TP
 .B \-\-watch " " \fImode\fR
 What live reload reacts to. One of
 .BR commit " (the default: a commit, tag, branch switch or fetch),"
@@ -159,6 +166,15 @@ or
 .BR false ;
 open a chromeless app window (default
 .BR false ).
+.TP
+.B webview
+.B true
+or
+.BR false ;
+use the embedded webview (default
+.BR false ;
+see
+.BR \-\-webview ).
 .TP
 .B watch
 .BR commit ", " all " or " off .

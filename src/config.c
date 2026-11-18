@@ -16,6 +16,7 @@
  *   host        address      interface to bind            (127.0.0.1)
  *   open        true/false   launch a browser on start    (true)
  *   app         true/false   open a chromeless app window (false)
+ *   webview     true/false   use the embedded webview     (false)
  *   watch       commit|all|off   what live reload reacts to (commit)
  *   web-root    directory    where the UI assets live
  *   token       string       require this token to open the UI
@@ -70,6 +71,7 @@ void config_init(struct gander_config *cfg) {
   cfg->port = 0;
   cfg->do_open = 1;
   cfg->do_app = 0;
+  cfg->do_webview = 0;
   cfg->watch_scope = WATCH_COMMIT;
   snprintf(cfg->host, sizeof cfg->host, "127.0.0.1");
 }
@@ -91,6 +93,12 @@ static void apply_kv(struct gander_config *cfg, const char *path, int lineno,
       cfg->do_app = b;
     else
       fprintf(stderr, "gander: %s:%d: app expects true/false\n", path, lineno);
+  } else if (strcmp(key, "webview") == 0) {
+    if (parse_bool(val, &b))
+      cfg->do_webview = b;
+    else
+      fprintf(stderr, "gander: %s:%d: webview expects true/false\n", path,
+              lineno);
   } else if (strcmp(key, "watch") == 0) {
     if (strcmp(val, "off") == 0 || strcmp(val, "none") == 0)
       cfg->watch_scope = WATCH_OFF;

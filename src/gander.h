@@ -211,6 +211,35 @@ void highlight_to_html(struct strbuf *out, const char *text, size_t len,
 void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
                             const char *lang);
 
+/* ------------------------------------------------------------- webview --- */
+
+/* An experimental embedded webview: a WebKitGTK window driven from the server's
+ * own poll loop, so `gander --webview` shows the UI without a separate browser.
+ *
+ * It is opt-in at build time (`make WEBVIEW=1`). Every other build compiles the
+ * inert stubs below, and webview_available() reports 0 so callers fall back to
+ * a normal browser. Nothing here pulls in GTK unless GANDER_WEBVIEW is defined.
+ *
+ * All of these must be called from the same thread that runs the poll loop. */
+struct webview_win;
+
+/* 1 when this binary was built with the embedded webview, else 0. */
+int webview_available(void);
+
+/* Open a window showing url. Returns NULL when it cannot be opened (no display,
+ * or a build without the webview). title and w/h are hints for the window
+ * manager; NULL/0 mean "gander" and a sensible default size. */
+struct webview_win *webview_open(const char *url, const char *title, int w,
+                                 int h);
+
+/* Process pending toolkit events without blocking. Returns 1 while the window
+ * is still open, 0 once it has been closed (so the caller can stop). Safe on
+ * NULL. */
+int webview_pump(struct webview_win *wv);
+
+/* Destroy the window and free it. Safe on NULL. */
+void webview_destroy(struct webview_win *wv);
+
 /* -------------------------------------------------------------- config --- */
 
 /* User configuration, read from an optional config file. Every field has a
@@ -229,6 +258,7 @@ struct gander_config {
   int port;            /* 0 = pick a free port */
   int do_open;         /* launch a browser on start */
   int do_app;          /* open a chromeless app window (Chromium family) */
+  int do_webview;      /* use the embedded webview (if this build has one) */
   int watch_scope;     /* enum watch_scope */
   char host[256];
   char web_root[4096];
@@ -255,11 +285,13 @@ const char *config_lookup_path(const struct gander_config *cfg,
 /* -------------------------------------------------------------- server --- */
 /* Run the HTTP server until interrupted. root is the directory being
  * previewed; web_root holds the bundled UI assets. When do_app is set the UI is
- * opened as a chromeless app window rather than a normal browser tab. user_css,
- * when non-empty, is a stylesheet appended after the bundled style.css so it
- * can override the theme. */
+ * opened as a chromeless app window rather than a normal browser tab. When
+ * do_webview is set (and the build has one) the UI is shown in the embedded
+ * webview instead, and closing that window stops the server. user_css, when
+ * non-empty, is a stylesheet appended after the bundled style.css so it can
+ * override the theme. */
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, int do_app, const char *token,
-               int watch_scope, const char *user_css);
+               int port, int do_open, int do_app, int do_webview,
+               const char *token, int watch_scope, const char *user_css);
 
 #endif /* GANDER_H */

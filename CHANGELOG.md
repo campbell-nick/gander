@@ -11,6 +11,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `--app` opens the UI in a chromeless Chromium-family window instead of a
   browser tab, using a throwaway profile; it falls back to a normal tab when no
   such browser is found. Also settable as `app = true` in the config file.
+- `--webview` shows the UI in an experimental embedded window instead of a
+  browser, built opt-in with `make WEBVIEW=1` (WebKitGTK on GTK3). A build
+  without it says so and opens a browser instead. Also settable as
+  `webview = true` in the config file.
 - Content search: press `/` to search file contents with `git grep --untracked`
   and click a hit to open the file at that line (`/api/search`).
 - A `gander(1)` manual page, installed by `make install`.

@@ -9,6 +9,8 @@ nothing to fetch at runtime and no dependencies beyond libc.
 - A POSIX system. **Live reload is Linux-only** (it uses `inotify`); on other
   platforms gander still serves everything, just without automatic refresh.
 - `make` (optional — see the one-liner below).
+- Optional: the `gtk+-3.0` and `webkit2gtk-4.1` development packages, only for
+  the experimental embedded webview (`make WEBVIEW=1`).
 
 ## Build
 
@@ -28,6 +30,22 @@ Or without `make`:
 ```sh
 cc -O2 -std=c11 -D_GNU_SOURCE -o gander src/*.c
 ```
+
+### Embedded webview (experimental)
+
+`gander` can show the UI in its own window instead of opening a browser. This is
+opt-in and links against WebKitGTK (on GTK3), so the default build stays
+libc-only:
+
+```sh
+make WEBVIEW=1
+./gander . --webview
+```
+
+It needs the development packages for `gtk+-3.0` and `webkit2gtk-4.1`; `make`
+says so if `pkg-config` cannot find them. Closing the window stops the server.
+Without a `WEBVIEW=1` build, `--webview` prints a note and opens a browser
+instead.
 
 ## Install
 

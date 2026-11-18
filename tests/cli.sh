@@ -138,11 +138,37 @@ printf 'app = true\n' >"$cfg2"
 run_gander --config "$cfg2" --help
 assert_eq "config 'app = true' is accepted" 0 "$STATUS"
 
+# --- --webview ----------------------------------------------------------------
+
+run_gander --help
+assert_contains "--help lists --webview" "$OUT" "--webview"
+
+# The default build has no embedded webview: --webview says so and still serves.
+SERVER_OUT=$(mktemp "$TMPROOT/server.XXXXXX")
+(cd "$repo" && exec "$GANDER_BIN" . --webview --no-open --port 0) >"$SERVER_OUT" 2>&1 &
+SERVER_PID=$!
+if _wait_url; then
+  assert_contains "--webview without a webview build explains itself" \
+    "$(cat "$SERVER_OUT")" "no embedded webview"
+  assert_contains "--webview still serves the UI" \
+    "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "--webview still serves the UI" "server did not start"
+fi
+stop_server
+
+# The webview = true config key is accepted.
+cfg3="$TMPROOT/config-webview"
+printf 'webview = true\n' >"$cfg3"
+run_gander --config "$cfg3" --help
+assert_eq "config 'webview = true' is accepted" 0 "$STATUS"
+
 # --- manual page --------------------------------------------------------------
 
 if [ -f man/gander.1 ]; then
   assert_contains "man page names gander" "$(cat man/gander.1)" ".TH GANDER 1"
   assert_contains "man page documents --app" "$(cat man/gander.1)" "chromeless"
+  assert_contains "man page documents --webview" "$(cat man/gander.1)" "embedded webview"
 else
   fail "man page exists" "man/gander.1 not found (run make check from the repo root)"
 fi
