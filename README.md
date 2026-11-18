@@ -105,19 +105,20 @@ linked worktree. Given a plain folder, gander prints a line and exits. Use
 The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 `<exe-dir>/web`, `<exe-dir>/../share/gander/web`, then `./web`.
 
-`--app` opens the UI in a chromeless window rather than a tab. It looks for a
-Chromium-family browser on `PATH` (`chromium`, `google-chrome`, `brave`,
-`helium`, `microsoft-edge`, `vivaldi`, …) and launches it with `--app=` and a
-throwaway profile under `$XDG_CACHE_HOME/gander/app`, so it never touches your
-normal browser data. Firefox has no equivalent, so if no Chromium-family browser
-is found, gander says so and opens a normal tab instead. Set `app = true` in the
-config file to make it the default.
+`--app` opens the UI in a chromeless window rather than a tab. It needs no extra
+toolkit: it looks for a Chromium-family browser on `PATH` (`chromium`,
+`google-chrome`, `brave`, `helium`, `microsoft-edge`, `vivaldi`, …) and launches
+it with `--app=` and a throwaway profile under `$XDG_CACHE_HOME/gander/app`, so
+it never touches your normal browser data. Firefox has no equivalent, so if no
+Chromium-family browser is found, gander says so and opens a normal tab instead.
+Set `app = true` in the config file to make it the default.
 
 `--webview` is the embedded alternative: rather than handing the URL to a
 browser, gander shows it in its own WebKitGTK window and stops when you close
 that window. It is experimental and only present in a `make WEBVIEW=1` build;
 without one, gander says so and opens a browser instead. Set `webview = true` in
-the config file to make it the default.
+the config file to make it the default. If you would rather not build WebKitGTK,
+`--app` gives you a chromeless window with no extra dependencies at all.
 
 ## Configuration
 
