@@ -1,0 +1,29 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (${{ matrix.cc }})
+        run: make clean && make CC=${{ matrix.cc }}
+
+      - name: Version
+        run: ./gander --version
+
+      - name: Test
+        run: make check
