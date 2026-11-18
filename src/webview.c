@@ -1,10 +1,10 @@
-/* webview.c - an experimental embedded webview for the gander UI.
+/* webview.c - the GTK backend (and the no-op stubs) for the embedded webview.
  *
  * By default this file is inert: gander stays libc-only and opens the UI in a
- * normal browser. Build with `make WEBVIEW=1` to compile the real thing, which
- * embeds a WebKitGTK view in a GTK3 window and drives it from the server's own
- * poll loop (see webview_pump). The window is created lazily, so a headless run
- * never touches GTK.
+ * normal browser. Build with `make WEBVIEW=1` to compile a real backend - this
+ * file's GTK/WebKitGTK implementation, or the Qt one in webview_qt.cpp - which
+ * is driven from the server's own poll loop (see webview_pump). The window is
+ * created lazily, so a headless run never touches a toolkit.
  */
 #include "gander.h"
 
@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef GANDER_WEBVIEW
+#if defined(GANDER_WEBVIEW_GTK)
 
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
@@ -89,7 +89,12 @@ void webview_destroy(struct webview_win *wv) {
   free(wv);
 }
 
-#else /* !GANDER_WEBVIEW - inert stubs, so the default build stays libc-only */
+#elif defined(GANDER_WEBVIEW_QT)
+
+/* The Qt WebEngine backend lives in webview_qt.cpp (C++); nothing to define
+ * here. */
+
+#else /* no backend - inert stubs, so the default build stays libc-only */
 
 int webview_available(void) { return 0; }
 
@@ -109,4 +114,4 @@ int webview_pump(struct webview_win *wv) {
 
 void webview_destroy(struct webview_win *wv) { (void)wv; }
 
-#endif /* GANDER_WEBVIEW */
+#endif /* backend */

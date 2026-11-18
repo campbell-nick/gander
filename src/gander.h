@@ -9,6 +9,10 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define GANDER_VERSION "0.1.0"
 
 /* ---------------------------------------------------------------- util --- */
@@ -213,12 +217,14 @@ void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
 
 /* ------------------------------------------------------------- webview --- */
 
-/* An experimental embedded webview: a WebKitGTK window driven from the server's
- * own poll loop, so `gander --webview` shows the UI without a separate browser.
+/* An experimental embedded webview: a real browser view in gander's own window,
+ * driven from the server's poll loop, so `gander --webview` shows the UI without
+ * a separate browser.
  *
- * It is opt-in at build time (`make WEBVIEW=1`). Every other build compiles the
- * inert stubs below, and webview_available() reports 0 so callers fall back to
- * a normal browser. Nothing here pulls in GTK unless GANDER_WEBVIEW is defined.
+ * It is opt-in at build time (`make WEBVIEW=1`) and picks a backend: WebKitGTK
+ * (GTK) when present, else Qt WebEngine. Every other build compiles inert stubs,
+ * and webview_available() reports 0 so callers fall back to a normal browser. No
+ * toolkit is pulled in unless a backend macro is defined.
  *
  * All of these must be called from the same thread that runs the poll loop. */
 struct webview_win;
@@ -293,5 +299,9 @@ const char *config_lookup_path(const struct gander_config *cfg,
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, int do_app, int do_webview,
                const char *token, int watch_scope, const char *user_css);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GANDER_H */

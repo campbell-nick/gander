@@ -46,3 +46,21 @@ jobs:
 
       - name: Version
         run: ./gander --version
+
+  # The Qt Web Engine backend, used when GTK is not wanted. Also experimental.
+  webview-qt:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt Web Engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-webengine-dev
+
+      - name: Build with the Qt webview
+        run: make clean && make WEBVIEW=qt
+
+      - name: Version
+        run: ./gander --version

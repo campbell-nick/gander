@@ -109,9 +109,14 @@ says so and opens a normal tab instead. Firefox has no equivalent.
 .B \-\-webview
 Show the UI in an embedded window instead of a browser. This is experimental and
 only present in a build made with
-.BR "make WEBVIEW=1" ,
-which links against WebKitGTK on GTK3. A build without it prints a note and
-opens a browser instead. Closing the embedded window stops the server.
+.BR "make WEBVIEW=1" .
+That build prefers WebKitGTK (GTK3) and falls back to Qt Web Engine when GTK is
+not present; force one with
+.B "make WEBVIEW=gtk"
+or
+.BR "make WEBVIEW=qt" .
+A build without a webview prints a note and opens a browser instead. Closing the
+embedded window stops the server.
 .TP
 .B \-\-watch " " \fImode\fR
 What live reload reacts to. One of

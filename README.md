@@ -56,9 +56,11 @@ make
 ```
 
 An experimental embedded webview is available as an opt-in build. `make
-WEBVIEW=1` links against WebKitGTK (on GTK3) and lets `--webview` show the UI in
-its own window instead of a browser; it is off by default so a plain `make`
-stays dependency-free.
+WEBVIEW=1` links against a browser engine and lets `--webview` show the UI in
+its own window instead of a browser. It prefers WebKitGTK (on GTK3) and falls
+back to Qt WebEngine when GTK is not present; `make WEBVIEW=gtk` or `make
+WEBVIEW=qt` forces one. It is off by default, so a plain `make` stays
+dependency-free.
 
 ## Install
 
@@ -114,11 +116,12 @@ Chromium-family browser is found, gander says so and opens a normal tab instead.
 Set `app = true` in the config file to make it the default.
 
 `--webview` is the embedded alternative: rather than handing the URL to a
-browser, gander shows it in its own WebKitGTK window and stops when you close
-that window. It is experimental and only present in a `make WEBVIEW=1` build;
-without one, gander says so and opens a browser instead. Set `webview = true` in
-the config file to make it the default. If you would rather not build WebKitGTK,
-`--app` gives you a chromeless window with no extra dependencies at all.
+browser, gander shows it in its own window (WebKitGTK, or Qt WebEngine where GTK
+is absent) and stops when you close that window. It is experimental and only
+present in a `make WEBVIEW=1` build; without one, gander says so and opens a
+browser instead. Set `webview = true` in the config file to make it the default.
+If you would rather not build an engine, `--app` gives you a chromeless window
+with no extra dependencies at all.
 
 ## Configuration
 
