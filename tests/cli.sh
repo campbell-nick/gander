@@ -119,4 +119,23 @@ else
 fi
 stop_server
 
+# --- --app --------------------------------------------------------------------
+
+run_gander --help
+assert_contains "--help lists --app" "$OUT" "--app"
+
+# --app changes only how the UI is launched, so the server still comes up.
+if start_server_in "$repo" . --app; then
+  assert_contains "--app still serves the UI" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "--app still serves the UI" "server did not start"
+fi
+stop_server
+
+# The app = true config key is accepted.
+cfg2="$TMPROOT/config-app"
+printf 'app = true\n' >"$cfg2"
+run_gander --config "$cfg2" --help
+assert_eq "config 'app = true' is accepted" 0 "$STATUS"
+
 report cli

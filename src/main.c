@@ -31,6 +31,9 @@ static void usage(FILE *out) {
           "  --config <file>   read settings from this file instead of\n"
           "                    ~/.config/gander/config\n"
           "  --no-open         do not launch a browser\n"
+          "  --app             open a chromeless app window instead of a tab\n"
+          "                    (uses a Chromium-family browser; falls back to\n"
+          "                    a normal tab if none is found)\n"
           "  --watch <mode>    what live reload reacts to: commit (default),\n"
           "                    all (every file change) or off\n"
           "  --no-watch        disable live reload (same as --watch off)\n"
@@ -183,6 +186,9 @@ int main(int argc, char **argv) {
       snprintf(cfg.token, sizeof cfg.token, "%s", a + 8);
     } else if (strcmp(a, "--no-open") == 0) {
       cfg.do_open = 0;
+    } else if (strcmp(a, "--app") == 0) {
+      cfg.do_app = 1;
+      cfg.do_open = 1;
     } else if (strcmp(a, "--no-watch") == 0) {
       cfg.watch_scope = WATCH_OFF;
     } else if (strcmp(a, "--watch") == 0 && i + 1 < argc) {
@@ -228,6 +234,6 @@ int main(int argc, char **argv) {
                 sizeof web_root);
 
   return server_run(path, web_root, cfg.host, cfg.port, cfg.do_open,
-                    cfg.token[0] ? cfg.token : NULL, cfg.watch_scope,
-                    cfg.css[0] ? cfg.css : NULL);
+                    cfg.do_app, cfg.token[0] ? cfg.token : NULL,
+                    cfg.watch_scope, cfg.css[0] ? cfg.css : NULL);
 }

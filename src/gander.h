@@ -221,6 +221,7 @@ struct gander_path {
 struct gander_config {
   int port;            /* 0 = pick a free port */
   int do_open;         /* launch a browser on start */
+  int do_app;          /* open a chromeless app window (Chromium family) */
   int watch_scope;     /* enum watch_scope */
   char host[256];
   char web_root[4096];
@@ -246,11 +247,12 @@ const char *config_lookup_path(const struct gander_config *cfg,
 
 /* -------------------------------------------------------------- server --- */
 /* Run the HTTP server until interrupted. root is the directory being
- * previewed; web_root holds the bundled UI assets. user_css, when non-empty,
- * is a stylesheet appended after the bundled style.css so it can override the
- * theme. */
+ * previewed; web_root holds the bundled UI assets. When do_app is set the UI is
+ * opened as a chromeless app window rather than a normal browser tab. user_css,
+ * when non-empty, is a stylesheet appended after the bundled style.css so it
+ * can override the theme. */
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, const char *token, int watch_scope,
-               const char *user_css);
+               int port, int do_open, int do_app, const char *token,
+               int watch_scope, const char *user_css);
 
 #endif /* GANDER_H */

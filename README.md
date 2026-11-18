@@ -81,6 +81,7 @@ gander               show this help
   --token <str>     require this token to open the UI
   --config <file>   read settings from this file instead of the default
   --no-open         do not launch a browser
+  --app             open a chromeless app window instead of a tab
   --watch <mode>    what live reload reacts to: commit (default), all or off
   --no-watch        disable live reload (same as --watch off)
   -h, --help        show help and exit
@@ -93,6 +94,14 @@ linked worktree. Given a plain folder, gander prints a line and exits. Use
 
 The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 `<exe-dir>/web`, `<exe-dir>/../share/gander/web`, then `./web`.
+
+`--app` opens the UI in a chromeless window rather than a tab. It looks for a
+Chromium-family browser on `PATH` (`chromium`, `google-chrome`, `brave`,
+`microsoft-edge`, `vivaldi`, …) and launches it with `--app=` and a throwaway
+profile under `$XDG_CACHE_HOME/gander/app`, so it never touches your normal
+browser data. Firefox has no equivalent, so if no Chromium-family browser is
+found, gander says so and opens a normal tab instead. Set `app = true` in the
+config file to make it the default.
 
 ## Configuration
 
@@ -113,6 +122,7 @@ always win over the file.
 port      = 8080          # 0 picks a free port (default)
 host      = 127.0.0.1     # interface to bind
 open      = true          # launch a browser on start
+app       = false         # open a chromeless app window (Chromium family)
 watch     = commit        # commit (default), all or off
 web-root  = /usr/share/gander/web
 token     = hunter2       # require this token to open the UI
@@ -239,9 +249,10 @@ directory — see [Configuration](#configuration).
 - **M4** code preview, syntax highlighting, line numbers — *done*
 - **M5** git panel: status colours, branch, log, per-file diff — *done*
 - **M6** repo home card — *done*
+- **M7** `--app` chromeless window (Chromium family) — *done*
 
-Planned: content search, an `--app` chromeless window, a `gander(1)` man page, a
-portable (non-Linux) live-reload backend, and an optional embedded webview.
+Planned: content search, a `gander(1)` man page, a portable (non-Linux)
+live-reload backend, and an optional embedded webview.
 
 ## License
 

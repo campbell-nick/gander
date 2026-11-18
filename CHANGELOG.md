@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `--app` opens the UI in a chromeless Chromium-family window instead of a
+  browser tab, using a throwaway profile; it falls back to a normal tab when no
+  such browser is found. Also settable as `app = true` in the config file.
+
 ## [0.1.0] - 2026-11-18
 
 The first release: an offline previewer for a local git repository.

@@ -839,16 +839,81 @@ static void conn_write(struct conn *c) {
 
 /* -------------------------------------------------------------- browser ----- */
 
-static void open_browser(const char *host, int port, const char *token) {
-  const char *h = host;
-  if (strcmp(host, "0.0.0.0") == 0 || strcmp(host, "::") == 0)
-    h = "127.0.0.1";
-  char url[600];
-  if (token && token[0])
-    snprintf(url, sizeof url, "http://%s:%d/?token=%s", h, port, token);
-  else
-    snprintf(url, sizeof url, "http://%s:%d/", h, port);
+/* Is `name` an executable file somewhere on PATH? Fills out with its full path
+ * when found. */
+static int find_in_path(const char *name, char *out, size_t outsz) {
+  const char *path = getenv("PATH");
+  if (!path || !path[0])
+    path = "/usr/local/bin:/usr/bin:/bin";
+  const char *p = path;
+  while (*p) {
+    const char *colon = strchr(p, ':');
+    size_t n = colon ? (size_t)(colon - p) : strlen(p);
+    if (n > 0 && n < 4000) {
+      char cand[4096];
+      snprintf(cand, sizeof cand, "%.*s/%s", (int)n, p, name);
+      if (access(cand, X_OK) == 0) {
+        snprintf(out, outsz, "%s", cand);
+        return 1;
+      }
+    }
+    if (!colon)
+      break;
+    p = colon + 1;
+  }
+  return 0;
+}
 
+/* The first Chromium-family browser on PATH, if any. Firefox has no --app
+ * equivalent, so it is deliberately not listed. */
+static int find_chromium(char *out, size_t outsz) {
+  static const char *const names[] = {
+      "chromium",       "chromium-browser",      "google-chrome",
+      "google-chrome-stable", "brave",           "brave-browser",
+      "microsoft-edge", "microsoft-edge-stable", "vivaldi",
+      "vivaldi-stable", NULL};
+  for (int i = 0; names[i]; i++)
+    if (find_in_path(names[i], out, outsz))
+      return 1;
+  return 0;
+}
+
+/* mkdir -p, mode 0700. Returns 1 on success (or if it already exists). */
+static int mkdir_p(const char *dir) {
+  char tmp[4096];
+  snprintf(tmp, sizeof tmp, "%s", dir);
+  for (char *p = tmp + 1; *p; p++) {
+    if (*p != '/')
+      continue;
+    *p = '\0';
+    if (mkdir(tmp, 0700) != 0 && errno != EEXIST)
+      return 0;
+    *p = '/';
+  }
+  if (mkdir(tmp, 0700) != 0 && errno != EEXIST)
+    return 0;
+  return 1;
+}
+
+/* A throwaway Chromium profile, so --app never touches the user's own browser
+ * data. Prefers $XDG_CACHE_HOME/gander/app, then ~/.cache/gander/app; leaves
+ * out empty if neither can be created. */
+static void app_profile(char *out, size_t outsz) {
+  out[0] = '\0';
+  char base[4096] = "";
+  const char *xdg = getenv("XDG_CACHE_HOME");
+  const char *home = getenv("HOME");
+  if (xdg && xdg[0])
+    snprintf(base, sizeof base, "%s/gander/app", xdg);
+  else if (home && home[0])
+    snprintf(base, sizeof base, "%s/.cache/gander/app", home);
+  else
+    return;
+  if (mkdir_p(base))
+    snprintf(out, outsz, "%s", base);
+}
+
+static void open_in_browser(const char *url) {
   pid_t pid = fork();
   if (pid == 0) {
     int devnull = open("/dev/null", O_WRONLY);
@@ -862,6 +927,52 @@ static void open_browser(const char *host, int port, const char *token) {
     execlp("sensible-browser", "sensible-browser", url, (char *)NULL);
     _exit(1);
   }
+}
+
+static void launch_ui(const char *host, int port, const char *token, int app) {
+  const char *h = host;
+  if (strcmp(host, "0.0.0.0") == 0 || strcmp(host, "::") == 0)
+    h = "127.0.0.1";
+  char url[600];
+  if (token && token[0])
+    snprintf(url, sizeof url, "http://%s:%d/?token=%s", h, port, token);
+  else
+    snprintf(url, sizeof url, "http://%s:%d/", h, port);
+
+  if (app) {
+    char browser[4096];
+    if (find_chromium(browser, sizeof browser)) {
+      char profile[4096];
+      app_profile(profile, sizeof profile);
+      char appflag[700];
+      snprintf(appflag, sizeof appflag, "--app=%s", url);
+      pid_t pid = fork();
+      if (pid == 0) {
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+          dup2(devnull, STDOUT_FILENO);
+          dup2(devnull, STDERR_FILENO);
+          close(devnull);
+        }
+        if (profile[0]) {
+          char udd[4200];
+          snprintf(udd, sizeof udd, "--user-data-dir=%s", profile);
+          execl(browser, browser, appflag, udd, "--no-first-run",
+                "--no-default-browser-check", (char *)NULL);
+        } else {
+          execl(browser, browser, appflag, "--no-first-run",
+                "--no-default-browser-check", (char *)NULL);
+        }
+        _exit(1);
+      }
+      return;
+    }
+    fprintf(stderr,
+            "gander: no Chromium-family browser found for --app; "
+            "opening a tab instead\n");
+  }
+
+  open_in_browser(url);
 }
 
 /* --------------------------------------------------------------- run -------- */
@@ -935,8 +1046,8 @@ static void tty_restore(int fd, const struct termios *saved) {
 }
 
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, const char *token, int watch_scope,
-               const char *user_css) {
+               int port, int do_open, int do_app, const char *token,
+               int watch_scope, const char *user_css) {
   /* Never let git take its optional locks. Without this, `git status` (which
    * we run to build the tree badges and the home card) refreshes and rewrites
    * .git/index, the watcher sees that as a change, the page refetches status,
@@ -1004,7 +1115,7 @@ int server_run(const char *root, const char *web_root, const char *host,
   set_nonblock(lfd);
 
   if (do_open)
-    open_browser(host, actual, token);
+    launch_ui(host, actual, token, do_app);
 
   s.w = watch_scope != WATCH_OFF ? watch_new(s.root_real, watch_scope) : NULL;
 
