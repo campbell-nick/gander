@@ -107,10 +107,10 @@ The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 
 `--app` opens the UI in a chromeless window rather than a tab. It looks for a
 Chromium-family browser on `PATH` (`chromium`, `google-chrome`, `brave`,
-`microsoft-edge`, `vivaldi`, …) and launches it with `--app=` and a throwaway
-profile under `$XDG_CACHE_HOME/gander/app`, so it never touches your normal
-browser data. Firefox has no equivalent, so if no Chromium-family browser is
-found, gander says so and opens a normal tab instead. Set `app = true` in the
+`helium`, `microsoft-edge`, `vivaldi`, …) and launches it with `--app=` and a
+throwaway profile under `$XDG_CACHE_HOME/gander/app`, so it never touches your
+normal browser data. Firefox has no equivalent, so if no Chromium-family browser
+is found, gander says so and opens a normal tab instead. Set `app = true` in the
 config file to make it the default.
 
 `--webview` is the embedded alternative: rather than handing the URL to a

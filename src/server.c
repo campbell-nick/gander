@@ -893,8 +893,8 @@ static int find_chromium(char *out, size_t outsz) {
   static const char *const names[] = {
       "chromium",       "chromium-browser",      "google-chrome",
       "google-chrome-stable", "brave",           "brave-browser",
-      "microsoft-edge", "microsoft-edge-stable", "vivaldi",
-      "vivaldi-stable", NULL};
+      "helium",         "microsoft-edge",        "microsoft-edge-stable",
+      "vivaldi",        "vivaldi-stable",        NULL};
   for (int i = 0; names[i]; i++)
     if (find_in_path(names[i], out, outsz))
       return 1;

@@ -19,6 +19,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and click a hit to open the file at that line (`/api/search`).
 - A `gander(1)` manual page, installed by `make install`.
 
+### Fixed
+
+- `--app` now recognises Helium (`helium`) as a Chromium-family browser.
+
 ## [0.1.0] - 2026-11-18
 
 The first release: an offline previewer for a local git repository.
