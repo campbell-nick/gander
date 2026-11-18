@@ -3,8 +3,9 @@
  * By default this file is inert: gander stays libc-only and opens the UI in a
  * normal browser. Build with `make WEBVIEW=1` to compile a real backend - this
  * file's GTK/WebKitGTK implementation, or the Qt one in webview_qt.cpp - which
- * is driven from the server's own poll loop (see webview_pump). The window is
- * created lazily, so a headless run never touches a toolkit.
+ * runs the toolkit's own event loop (see webview_run) and calls back into the
+ * server for socket I/O. The window is created lazily, so a headless run never
+ * touches a toolkit.
  */
 #include "gander.h"
 
@@ -17,22 +18,39 @@
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
 
+/* How often the server gets a turn while GTK owns the event loop. */
+#define WEBVIEW_TICK_MS 4
+
 struct webview_win {
   GtkWidget *window;
   GtkWidget *view;
   int alive;
+  int (*tick)(void *);
+  void *ud;
+  guint tick_id;
 };
 
 /* The window manager asked to close the window (or we destroyed it). GTK
  * finalises the widget right after this signal, so drop our pointers to it: the
- * next webview_pump then tells the server to stop, and webview_destroy knows
- * there is nothing left to free. */
+ * main loop then stops, and webview_destroy knows there is nothing left. */
 static void on_destroy(GtkWidget *widget, gpointer data) {
   struct webview_win *wv = data;
   if (wv->window == widget)
     wv->window = NULL;
   wv->view = NULL;
   wv->alive = 0;
+  gtk_main_quit();
+}
+
+/* Periodic server turn, so sockets are serviced while GTK runs the loop. */
+static gboolean on_tick(gpointer data) {
+  struct webview_win *wv = data;
+  if (!wv->alive || (wv->tick && wv->tick(wv->ud))) {
+    wv->tick_id = 0;
+    gtk_main_quit();
+    return G_SOURCE_REMOVE;
+  }
+  return G_SOURCE_CONTINUE;
 }
 
 int webview_available(void) { return 1; }
@@ -70,18 +88,25 @@ struct webview_win *webview_open(const char *url, const char *title,
   webkit_web_view_load_uri(WEBKIT_WEB_VIEW(wv->view), url);
   gtk_widget_show_all(wv->window);
 
-  /* Flush once so the window is on screen before the server loop takes over. */
+  /* Flush once so the window is on screen before the main loop takes over. */
   while (gtk_events_pending())
     gtk_main_iteration();
   return wv;
 }
 
-int webview_pump(struct webview_win *wv) {
+void webview_run(struct webview_win *wv, int (*tick)(void *), void *ud) {
   if (!wv || !wv->alive)
-    return 0;
-  while (gtk_events_pending())
-    gtk_main_iteration();
-  return wv->alive;
+    return;
+  wv->tick = tick;
+  wv->ud = ud;
+  /* GTK owns the loop, so input and rendering are handled the moment they
+   * arrive; the timeout just gives the server a regular turn for its sockets. */
+  wv->tick_id = g_timeout_add(WEBVIEW_TICK_MS, on_tick, wv);
+  gtk_main();
+  if (wv->tick_id) {
+    g_source_remove(wv->tick_id);
+    wv->tick_id = 0;
+  }
 }
 
 void webview_destroy(struct webview_win *wv) {
@@ -117,9 +142,10 @@ struct webview_win *webview_open(const char *url, const char *title,
   return NULL;
 }
 
-int webview_pump(struct webview_win *wv) {
+void webview_run(struct webview_win *wv, int (*tick)(void *), void *ud) {
   (void)wv;
-  return 0;
+  (void)tick;
+  (void)ud;
 }
 
 void webview_destroy(struct webview_win *wv) { (void)wv; }

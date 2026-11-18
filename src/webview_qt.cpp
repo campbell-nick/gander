@@ -2,9 +2,9 @@
  *
  * Built only when the webview selects Qt (`make WEBVIEW=qt`, or `make WEBVIEW=1`
  * when WebKitGTK is absent). The shared C API is declared in gander.h; the GTK
- * backend and the no-op stubs live in webview.c. Like the GTK one, this is
- * driven from the server's poll loop (see webview_pump) rather than a Qt event
- * loop of its own.
+ * backend and the no-op stubs live in webview.c. Like the GTK one, this runs the
+ * toolkit's own event loop (see webview_run) and calls back into the server for
+ * socket I/O, so input and rendering stay responsive.
  *
  * Qt is C++, so this is the one C++ translation unit in gander; the default
  * build never sees it.
@@ -21,10 +21,16 @@
 #include <QCloseEvent>
 #include <QIcon>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QWebEngineView>
 
 namespace {
+
+/* How often the server gets a turn while Qt owns the event loop. Small enough
+ * that an HTTP request is picked up promptly, large enough to stay idle when
+ * nothing is happening. */
+constexpr int kServerTickMs = 4;
 
 /* A QWebEngineView that notices when its window is closed. closeEvent is a
  * plain virtual, so this needs no Q_OBJECT and no moc. */
@@ -103,17 +109,25 @@ struct webview_win *webview_open(const char *url, const char *title,
   view->load(QUrl(QString::fromUtf8(url)));
   view->show();
 
-  /* Flush once so the window is on screen before the server loop takes over. */
+  /* Flush once so the window is on screen before the main loop takes over. */
   app->processEvents();
   return wv;
 }
 
-int webview_pump(struct webview_win *wv) {
-  if (!wv || !wv->alive)
-    return 0;
-  if (wv->app)
-    wv->app->processEvents();
-  return wv->alive;
+void webview_run(struct webview_win *wv, int (*tick)(void *), void *ud) {
+  if (!wv || !wv->app || !wv->alive)
+    return;
+  /* Qt owns the loop, so input and rendering are handled the moment they
+   * arrive instead of once per server poll. The timer just gives the server a
+   * regular turn to service its sockets. */
+  QTimer timer;
+  QObject::connect(&timer, &QTimer::timeout, [&]() {
+    if (!wv->alive || (tick && tick(ud)))
+      wv->app->quit();
+  });
+  timer.start(kServerTickMs);
+  wv->app->exec();
+  timer.stop();
 }
 
 void webview_destroy(struct webview_win *wv) {

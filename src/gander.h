@@ -218,15 +218,15 @@ void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
 /* ------------------------------------------------------------- webview --- */
 
 /* An experimental embedded webview: a real browser view in gander's own window,
- * driven from the server's poll loop, so `gander --webview` shows the UI without
- * a separate browser.
+ * so `gander --webview` shows the UI without a separate browser.
  *
  * It is opt-in at build time (`make WEBVIEW=1`) and picks a backend: WebKitGTK
  * (GTK) when present, else Qt WebEngine. Every other build compiles inert stubs,
  * and webview_available() reports 0 so callers fall back to a normal browser. No
  * toolkit is pulled in unless a backend macro is defined.
  *
- * All of these must be called from the same thread that runs the poll loop. */
+ * The toolkit owns the event loop while the window is open (see webview_run);
+ * everything here runs on the one thread that also serves the sockets. */
 struct webview_win;
 
 /* 1 when this binary was built with the embedded webview, else 0. */
@@ -240,10 +240,13 @@ int webview_available(void);
 struct webview_win *webview_open(const char *url, const char *title,
                                  const char *icon, int w, int h);
 
-/* Process pending toolkit events without blocking. Returns 1 while the window
- * is still open, 0 once it has been closed (so the caller can stop). Safe on
- * NULL. */
-int webview_pump(struct webview_win *wv);
+/* Run the toolkit's own event loop until the window is closed, calling tick(ud)
+ * periodically so the server can service its sockets. tick returns 0 to keep
+ * going, non-zero to stop (e.g. on SIGINT). Handing the loop to the toolkit -
+ * rather than pumping its events from the server's poll loop - is what keeps
+ * input and rendering responsive. Safe on NULL; the inert build returns at
+ * once. */
+void webview_run(struct webview_win *wv, int (*tick)(void *ud), void *ud);
 
 /* Destroy the window and free it. Safe on NULL. */
 void webview_destroy(struct webview_win *wv);

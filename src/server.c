@@ -29,9 +29,6 @@
 #define MAX_CONNS 256
 #define REQ_MAX (64 * 1024)
 #define POLL_TIMEOUT_MS 40
-/* With the embedded webview open we drive GTK ourselves, so poll a little more
- * often to keep the window responsive (~60 Hz). */
-#define WEBVIEW_POLL_MS 16
 
 #define CSP                                                                   \
   "default-src 'none'; img-src 'self' data: blob:; media-src 'self' blob:; "  \
@@ -57,6 +54,7 @@ struct server {
   struct watcher *w;
   struct conn *conns;
   int nconns;
+  int lfd;
   char user_css[4096];
 };
 
@@ -1076,6 +1074,119 @@ static void tty_restore(int fd, const struct termios *saved) {
     tcsetattr(fd, TCSANOW, saved);
 }
 
+/* One turn of the server's event loop: wait up to timeout_ms for the listening
+ * socket, the watcher or a client to become ready, then service whatever is.
+ * Returns 1 when the caller should stop (a poll error), else 0. Kept separate
+ * from server_run so the embedded webview can drive it from its own event loop
+ * with a zero timeout (see server_tick). */
+static int server_step(struct server *s, int timeout_ms) {
+  struct pollfd pfds[MAX_CONNS + 4];
+  struct conn *pmap[MAX_CONNS + 4];
+
+  int nf = 0;
+  pfds[nf].fd = s->lfd;
+  pfds[nf].events = POLLIN;
+  pfds[nf].revents = 0;
+  pmap[nf] = NULL;
+  nf++;
+
+  int wfd = watch_fd(s->w);
+  int wslot = -1;
+  if (wfd >= 0) {
+    wslot = nf;
+    pfds[nf].fd = wfd;
+    pfds[nf].events = POLLIN;
+    pfds[nf].revents = 0;
+    pmap[nf] = NULL;
+    nf++;
+  }
+
+  for (struct conn *c = s->conns; c && nf < MAX_CONNS + 4; c = c->next) {
+    pfds[nf].fd = c->fd;
+    pfds[nf].events = (c->state == C_WRITE) ? POLLOUT : POLLIN;
+    pfds[nf].revents = 0;
+    pmap[nf] = c;
+    nf++;
+  }
+
+  int pr = poll(pfds, (nfds_t)nf, timeout_ms);
+  if (pr < 0) {
+    if (errno == EINTR)
+      return 0;
+    perror("gander: poll");
+    return 1;
+  }
+
+  /* accept new connections */
+  if (pfds[0].revents & POLLIN) {
+    for (;;) {
+      int fd = accept(s->lfd, NULL, NULL);
+      if (fd < 0)
+        break;
+      if (s->nconns >= MAX_CONNS) {
+        close(fd);
+        continue;
+      }
+      set_nonblock(fd);
+      conn_new(s, fd);
+    }
+  }
+
+  if (wslot >= 0 && (pfds[wslot].revents & POLLIN))
+    watch_drain(s->w);
+
+  for (int i = 1; i < nf; i++) {
+    struct conn *c = pmap[i];
+    if (!c)
+      continue;
+    short re = pfds[i].revents;
+    if (re & (POLLERR | POLLNVAL)) {
+      c->close_after = 1;
+      continue;
+    }
+    if (re & (POLLIN | POLLHUP)) {
+      if (c->state == C_READ || c->state == C_SSE)
+        conn_read(s, c);
+    }
+    if (!c->close_after && (c->state == C_WRITE) && (re & POLLOUT))
+      conn_write(c);
+  }
+
+  /* flush any responses queued this round */
+  for (struct conn *c = s->conns; c; c = c->next)
+    if (c->out_off < c->out.len)
+      conn_write(c);
+
+  /* debounced live-reload broadcast */
+  char **paths;
+  size_t np;
+  if (watch_take(s->w, &paths, &np)) {
+    broadcast(s, paths, np);
+    for (size_t i = 0; i < np; i++)
+      free(paths[i]);
+    free(paths);
+  }
+
+  /* reap */
+  struct conn *c = s->conns;
+  while (c) {
+    struct conn *next = c->next;
+    if (c->close_after)
+      conn_free(s, c);
+    c = next;
+  }
+
+  return 0;
+}
+
+/* The toolkit calls this from its own event loop. A non-blocking server turn
+ * keeps the sockets moving without ever stalling the UI. */
+static int server_tick(void *ud) {
+  if (g_stop)
+    return 1;
+  return server_step((struct server *)ud, 0);
+}
+
 int server_run(const char *root, const char *web_root, const char *host,
                int port, int do_open, int do_app, int do_webview,
                const char *token, int watch_scope, const char *user_css) {
@@ -1144,6 +1255,7 @@ int server_run(const char *root, const char *web_root, const char *host,
   getsockname(lfd, (struct sockaddr *)&sa, &sl);
   int actual = ntohs(sa.sin_port);
   set_nonblock(lfd);
+  s.lfd = lfd;
 
   char url[600];
   ui_url(host, actual, token, url, sizeof url);
@@ -1197,106 +1309,15 @@ int server_run(const char *root, const char *web_root, const char *host,
   signal(SIGTERM, on_signal);
   signal(SIGPIPE, SIG_IGN);
 
-  struct pollfd pfds[MAX_CONNS + 4];
-  struct conn *pmap[MAX_CONNS + 4];
-
-  while (!g_stop) {
-    int nf = 0;
-    pfds[nf].fd = lfd;
-    pfds[nf].events = POLLIN;
-    pfds[nf].revents = 0;
-    pmap[nf] = NULL;
-    nf++;
-
-    int wfd = watch_fd(s.w);
-    int wslot = -1;
-    if (wfd >= 0) {
-      wslot = nf;
-      pfds[nf].fd = wfd;
-      pfds[nf].events = POLLIN;
-      pfds[nf].revents = 0;
-      pmap[nf] = NULL;
-      nf++;
-    }
-
-    for (struct conn *c = s.conns; c && nf < MAX_CONNS + 4; c = c->next) {
-      pfds[nf].fd = c->fd;
-      pfds[nf].events = (c->state == C_WRITE) ? POLLOUT : POLLIN;
-      pfds[nf].revents = 0;
-      pmap[nf] = c;
-      nf++;
-    }
-
-    int pr = poll(pfds, (nfds_t)nf, wv ? WEBVIEW_POLL_MS : POLL_TIMEOUT_MS);
-    if (pr < 0) {
-      if (errno == EINTR)
-        continue;
-      perror("gander: poll");
-      break;
-    }
-
-    /* Drive the embedded webview; closing its window stops the server. */
-    if (wv && !webview_pump(wv))
-      break;
-
-    /* accept new connections */
-    if (pfds[0].revents & POLLIN) {
-      for (;;) {
-        int fd = accept(lfd, NULL, NULL);
-        if (fd < 0)
-          break;
-        if (s.nconns >= MAX_CONNS) {
-          close(fd);
-          continue;
-        }
-        set_nonblock(fd);
-        conn_new(&s, fd);
-      }
-    }
-
-    if (wslot >= 0 && (pfds[wslot].revents & POLLIN))
-      watch_drain(s.w);
-
-    for (int i = 1; i < nf; i++) {
-      struct conn *c = pmap[i];
-      if (!c)
-        continue;
-      short re = pfds[i].revents;
-      if (re & (POLLERR | POLLNVAL)) {
-        c->close_after = 1;
-        continue;
-      }
-      if (re & (POLLIN | POLLHUP)) {
-        if (c->state == C_READ || c->state == C_SSE)
-          conn_read(&s, c);
-      }
-      if (!c->close_after && (c->state == C_WRITE) && (re & POLLOUT))
-        conn_write(c);
-    }
-
-    /* flush any responses queued this round */
-    for (struct conn *c = s.conns; c; c = c->next)
-      if (c->out_off < c->out.len)
-        conn_write(c);
-
-    /* debounced live-reload broadcast */
-    char **paths;
-    size_t np;
-    if (watch_take(s.w, &paths, &np)) {
-      broadcast(&s, paths, np);
-      for (size_t i = 0; i < np; i++)
-        free(paths[i]);
-      free(paths);
-    }
-
-    /* reap */
-    struct conn *c = s.conns;
-    while (c) {
-      struct conn *next = c->next;
-      if (c->close_after)
-        conn_free(&s, c);
-      c = next;
-    }
+  /* With a window open the toolkit runs the event loop (so input and rendering
+   * stay responsive) and calls server_tick for socket I/O; otherwise the server
+   * owns the loop directly. Either way it is one thread. */
+  if (wv) {
+    webview_run(wv, server_tick, &s);
+  } else {
+    while (!g_stop)
+      if (server_step(&s, POLL_TIMEOUT_MS))
+        break;
   }
 
   tty_restore(tty_q, &tty_saved);
