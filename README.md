@@ -57,9 +57,10 @@ make
 
 ## Install
 
-`make install` places the binary in `$PREFIX/bin` and the UI assets in
-`$PREFIX/share/gander/web` (found automatically at runtime). The recommended
-setup is a per-user install into `~/.local`:
+`make install` places the binary in `$PREFIX/bin`, the UI assets in
+`$PREFIX/share/gander/web` (found automatically at runtime), and the manual
+page in `$PREFIX/share/man/man1`, so `man gander` works after installing. The
+recommended setup is a per-user install into `~/.local`:
 
 ```sh
 make
@@ -266,9 +267,10 @@ directory — see [Configuration](#configuration).
 - **M6** repo home card — *done*
 - **M7** `--app` chromeless window (Chromium family) — *done*
 - **M8** content search over the working tree — *done*
+- **M9** `gander(1)` manual page — *done*
 
-Planned: a `gander(1)` man page, a portable (non-Linux) live-reload backend,
-and an optional embedded webview.
+Planned: a portable (non-Linux) live-reload backend and an optional embedded
+webview.
 
 ## License
 

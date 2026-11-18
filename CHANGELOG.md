@@ -13,6 +13,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   such browser is found. Also settable as `app = true` in the config file.
 - Content search: press `/` to search file contents with `git grep --untracked`
   and click a hit to open the file at that line (`/api/search`).
+- A `gander(1)` manual page, installed by `make install`.
 
 ## [0.1.0] - 2026-11-18
 

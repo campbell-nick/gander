@@ -138,4 +138,13 @@ printf 'app = true\n' >"$cfg2"
 run_gander --config "$cfg2" --help
 assert_eq "config 'app = true' is accepted" 0 "$STATUS"
 
+# --- manual page --------------------------------------------------------------
+
+if [ -f man/gander.1 ]; then
+  assert_contains "man page names gander" "$(cat man/gander.1)" ".TH GANDER 1"
+  assert_contains "man page documents --app" "$(cat man/gander.1)" "chromeless"
+else
+  fail "man page exists" "man/gander.1 not found (run make check from the repo root)"
+fi
+
 report cli

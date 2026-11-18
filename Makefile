@@ -6,6 +6,7 @@ VERSION := 0.1.0
 PREFIX  ?= /usr/local
 BINDIR   = $(PREFIX)/bin
 SHAREDIR = $(PREFIX)/share/gander
+MANDIR   = $(PREFIX)/share/man/man1
 
 CC      ?= cc
 CFLAGS  ?= -O2
@@ -33,13 +34,15 @@ check: $(BIN)
 	./tests/run.sh
 
 install: $(BIN)
-	install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(SHAREDIR)/web
+	install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(SHAREDIR)/web $(DESTDIR)$(MANDIR)
 	install -m 0755 $(BIN) $(DESTDIR)$(BINDIR)/$(BIN)
 	install -m 0644 web/* $(DESTDIR)$(SHAREDIR)/web/
+	install -m 0644 man/gander.1 $(DESTDIR)$(MANDIR)/gander.1
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN)
 	rm -rf $(DESTDIR)$(SHAREDIR)
+	rm -f $(DESTDIR)$(MANDIR)/gander.1
 
 clean:
 	rm -f $(OBJ) $(BIN)

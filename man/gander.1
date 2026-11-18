@@ -1,0 +1,269 @@
+.TH GANDER 1 "November 2026" "gander 0.1.0" "User Commands"
+.SH NAME
+gander \- preview a local git repository, offline
+.SH SYNOPSIS
+.B gander
+.RI [ options ]
+.I path
+.br
+.B gander
+.RI [ options ]
+.I name
+.br
+.B gander
+.B current
+.RI [ options ]
+.br
+.B gander
+.RB [ \-h | \-V ]
+.SH DESCRIPTION
+.B gander
+serves a small web UI for a local git repository on
+.B 127.0.0.1
+and opens it in your browser: a file tree on the left, live previews on the
+right. Markdown, images, animated GIFs, video, PDFs and source code are all
+rendered locally, and the view refreshes as the repository changes.
+.PP
+Everything is local. There is no network code, no CDN and no telemetry; the
+bundled UI is the only thing served. The previewed directory must be a git
+repository \(em a
+.I .git
+directory, or a
+.I .git
+file for a linked worktree. Given a plain directory,
+.B gander
+prints a line and exits without starting a server.
+.SH COMMANDS
+.TP
+.I path
+Preview the git repository at
+.IR path .
+.TP
+.I name
+Preview a repository named in the config file's
+.B [paths]
+section. Names are matched case-insensitively and a leading
+.B ~
+expands to
+.BR $HOME .
+A directory that exists on disk wins over a shortcut of the same name.
+.TP
+.B current
+Preview the current working directory (same as
+.BR . ).
+.TP
+.B gander
+With no target, print the command list and exit.
+.SH OPTIONS
+.TP
+.B \-\-port " " \fIn\fR
+Listen on port
+.IR n .
+The default,
+.BR 0 ,
+picks a free port.
+.TP
+.B \-\-host " " \fIaddr\fR
+Bind to
+.IR addr .
+The default is
+.BR 127.0.0.1 .
+.TP
+.B \-\-web-root " " \fIdir\fR
+Serve the UI assets from
+.IR dir .
+.TP
+.B \-\-token " " \fIstr\fR
+Require
+.I str
+to open the UI. The token is accepted as a
+.B ?token=
+query parameter (which sets a cookie) or as the
+.B gander_token
+cookie.
+.TP
+.B \-\-config " " \fIfile\fR
+Read settings from
+.I file
+instead of the default location.
+.TP
+.B \-\-no-open
+Do not launch a browser or app window.
+.TP
+.B \-\-app
+Open the UI in a chromeless window instead of a browser tab. A
+Chromium-family browser
+.RB ( chromium ,
+.BR google-chrome ,
+.BR brave ,
+.BR microsoft-edge ,
+.BR vivaldi ,
+and friends) is launched with
+.B \-\-app=
+and a throwaway profile under the cache directory, so your normal browser data
+is never touched. If no such browser is found,
+.B gander
+says so and opens a normal tab instead. Firefox has no equivalent.
+.TP
+.B \-\-watch " " \fImode\fR
+What live reload reacts to. One of
+.BR commit " (the default: a commit, tag, branch switch or fetch),"
+.BR all " (every file change) or"
+.BR off .
+.TP
+.B \-\-no-watch
+Disable live reload (same as
+.BR "\-\-watch off" ).
+.TP
+.BR \-h ", " \-\-help
+Print the command list and exit.
+.TP
+.BR \-V ", " \-\-version
+Print the version (with the ASCII goose) and exit.
+.SH CONFIGURATION
+Settings are read from the first of these that exists:
+.BR $GANDER_CONFIG ,
+.BR $XDG_CONFIG_HOME/gander/config ,
+then
+.BR $HOME/.config/gander/config .
+A missing file is fine; every key has a built-in default. Command-line options
+always win over the file.
+.PP
+The file is plain
+.I key = value
+lines; blank lines and lines starting with
+.B #
+or
+.B ;
+are ignored, and a value may be quoted. Recognised keys:
+.TP
+.B port
+Integer; the port to listen on
+.RB ( 0
+picks a free one).
+.TP
+.B host
+The interface to bind (default
+.BR 127.0.0.1 ).
+.TP
+.B open
+.B true
+or
+.BR false ;
+whether to launch a browser on start (default
+.BR true ).
+.TP
+.B app
+.B true
+or
+.BR false ;
+open a chromeless app window (default
+.BR false ).
+.TP
+.B watch
+.BR commit ", " all " or " off .
+.TP
+.B web-root
+Where the UI assets live.
+.TP
+.B token
+Require this token to open the UI.
+.TP
+.B style
+A stylesheet to layer over the bundled theme.
+.PP
+A stylesheet named
+.I style.css
+next to the config file is used automatically as the
+.B style
+value.
+.SS Named paths
+The
+.B [paths]
+section maps a short name to a repository, so
+.B gander Nexus
+opens it from anywhere:
+.PP
+.RS 4
+.EX
+[paths]
+Nexus = ~/Projects/Nexus
+.EE
+.RE
+.SH ENVIRONMENT
+.TP
+.B GANDER_CONFIG
+The config file to read, unless
+.B \-\-config
+is given.
+.TP
+.B GANDER_WEB
+The directory holding the UI assets, used when
+.B \-\-web-root
+is not given.
+.TP
+.B XDG_CONFIG_HOME
+Base for the default config location.
+.TP
+.B XDG_CACHE_HOME
+Base for the throwaway profile used by
+.BR \-\-app .
+.TP
+.B HOME
+Base for the default config location and the
+.B \-\-app
+profile.
+.TP
+.B PATH
+Searched for the browser launched by
+.BR \-\-app .
+.SH EXIT STATUS
+.TP
+.B 0
+Success (including
+.B \-\-help
+and
+.BR \-\-version ).
+.TP
+.B 1
+The target is missing, is not a directory, or is not a git repository; or the
+server could not start.
+.TP
+.B 2
+An unknown option was given.
+.SH FILES
+.TP
+.I ~/.config/gander/config
+The default configuration file.
+.TP
+.I ~/.config/gander/style.css
+A user stylesheet layered over the bundled theme.
+.SH EXAMPLES
+Preview the repository in the current directory:
+.PP
+.RS 4
+.EX
+gander current
+.EE
+.RE
+.PP
+Preview a named repository in a chromeless window on a fixed port:
+.PP
+.RS 4
+.EX
+gander Nexus --app --port 8080
+.EE
+.RE
+.PP
+Serve for a shared machine, gated by a token:
+.PP
+.RS 4
+.EX
+gander ~/work/api --host 127.0.0.1 --token hunter2
+.EE
+.RE
+.SH SEE ALSO
+.BR git (1)
+.PP
+The bundled UI offers full-text search over the working tree (press
+.BR / ).

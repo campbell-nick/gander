@@ -31,9 +31,10 @@ cc -O2 -std=c11 -D_GNU_SOURCE -o gander src/*.c
 
 ## Install
 
-`make install` copies the binary to `$(PREFIX)/bin/gander` and the UI assets to
-`$(PREFIX)/share/gander/web/`, which the binary locates automatically at
-runtime (see [How the assets are found](#how-the-assets-are-found)).
+`make install` copies the binary to `$(PREFIX)/bin/gander`, the UI assets to
+`$(PREFIX)/share/gander/web/` (which the binary locates automatically at
+runtime — see [How the assets are found](#how-the-assets-are-found)), and the
+manual page to `$(PREFIX)/share/man/man1/gander.1`.
 
 `PREFIX` defaults to `/usr/local`. There are two sensible choices:
 
@@ -80,7 +81,8 @@ make
 make install DESTDIR="$pkgdir" PREFIX=/usr
 ```
 
-This writes to `$pkgdir/usr/bin/gander` and `$pkgdir/usr/share/gander/web/`.
+This writes to `$pkgdir/usr/bin/gander`, `$pkgdir/usr/share/gander/web/` and
+`$pkgdir/usr/share/man/man1/gander.1`.
 
 ## Verify
 
