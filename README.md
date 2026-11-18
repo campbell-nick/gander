@@ -275,3 +275,7 @@ webview.
 ## License
 
 MIT — see [LICENSE](LICENSE). © campbell-nick
+
+The logo is gander's own: `web/logo.svg` (the README header and the SVG
+favicon) and the ASCII goose in `src/logo.h` are original artwork by
+campbell-nick, covered by the same MIT licence.
