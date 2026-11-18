@@ -12,7 +12,9 @@ a bundled web UI on `127.0.0.1` and opens it in your browser. No network, no
 CDN, no telemetry — nothing leaves your machine.
 
 ```
-gander [path]
+gander <path>        preview the repository at <path>
+gander current       preview the current directory
+gander <name>        preview a name from the config's [paths]
 ```
 
 ## Why
@@ -236,7 +238,10 @@ directory — see [Configuration](#configuration).
 - **M3** Markdown → HTML with inline relative media — *done*
 - **M4** code preview, syntax highlighting, line numbers — *done*
 - **M5** git panel: status colours, branch, log, per-file diff — *done*
-- **M6** repo home card — *done*; search, themes, `--app` webview window
+- **M6** repo home card — *done*
+
+Planned: content search, an `--app` chromeless window, a `gander(1)` man page, a
+portable (non-Linux) live-reload backend, and an optional embedded webview.
 
 ## License
 

@@ -1,7 +1,6 @@
 # build output
 /gander
 *.o
-src/*.o
 
 # logo sources: kept on disk, not committed (the bundled one is web/logo.svg)
 /logo.png

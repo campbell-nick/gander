@@ -1,4 +1,4 @@
-# gander - offline previewer for a local folder or git repository
+# gander - offline previewer for a local git repository
 #
 # Plain C11, no dependencies beyond libc.
 
