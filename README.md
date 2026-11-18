@@ -63,7 +63,7 @@ WEBVIEW=1` links against a browser engine and lets `--webview` show the UI in
 its own window instead of a browser. It prefers WebKitGTK (on GTK3) and falls
 back to Qt WebEngine when GTK is not present; `make WEBVIEW=gtk` or `make
 WEBVIEW=qt` forces one. It is off by default, so a plain `make` stays
-dependency-free.
+dependency-free. See [docs/webview.md](docs/webview.md) for the details.
 
 ## Install
 
@@ -293,6 +293,13 @@ directory — see [Configuration](#configuration).
 - **M10** experimental embedded webview (WebKitGTK, else Qt Web Engine; opt-in) — *done*
 
 Planned: a portable (non-Linux) live-reload backend.
+
+## Contributing
+
+Bug reports, patches and questions are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md) for building and testing, and
+[docs/architecture.md](docs/architecture.md) for how the source fits together.
+The embedded webview has its own notes in [docs/webview.md](docs/webview.md).
 
 ## License
 

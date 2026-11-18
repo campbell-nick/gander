@@ -19,6 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Content search: press `/` to search file contents with `git grep --untracked`
   and click a hit to open the file at that line (`/api/search`).
 - A `gander(1)` manual page, installed by `make install`.
+- Contributor and architecture notes: `CONTRIBUTING.md`, `docs/architecture.md`
+  and `docs/webview.md`.
 
 ### Fixed
 
