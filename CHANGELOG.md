@@ -13,8 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   such browser is found. Also settable as `app = true` in the config file.
 - `--webview` shows the UI in an experimental embedded window instead of a
   browser, built opt-in with `make WEBVIEW=1` (WebKitGTK on GTK3, or Qt Web
-  Engine where GTK is absent). A build without it says so and opens a browser
-  instead. Also settable as `webview = true` in the config file.
+  Engine where GTK is absent). The window uses the bundled gander logo as its
+  icon. A build without it says so and opens a browser instead. Also settable as
+  `webview = true` in the config file.
 - Content search: press `/` to search file contents with `git grep --untracked`
   and click a hit to open the file at that line (`/api/search`).
 - A `gander(1)` manual page, installed by `make install`.
@@ -22,6 +23,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - `--app` now recognises Helium (`helium`) as a Chromium-family browser.
+- The embedded webview no longer feels laggy: the toolkit runs its own event
+  loop and the server services its sockets from a short periodic callback, so
+  input and rendering are handled immediately instead of only after each server
+  poll.
 
 ## [0.1.0] - 2026-11-18
 

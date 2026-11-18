@@ -120,11 +120,12 @@ Set `app = true` in the config file to make it the default.
 
 `--webview` is the embedded alternative: rather than handing the URL to a
 browser, gander shows it in its own window (WebKitGTK, or Qt WebEngine where GTK
-is absent) and stops when you close that window. It is experimental and only
-present in a `make WEBVIEW=1` build; without one, gander says so and opens a
-browser instead. Set `webview = true` in the config file to make it the default.
-If you would rather not build an engine, `--app` gives you a chromeless window
-with no extra dependencies at all.
+is absent) and stops when you close that window. The window is titled `gander`
+and carries the bundled logo as its icon. It is experimental and only present in
+a `make WEBVIEW=1` build; without one, gander says so and opens a browser
+instead. Set `webview = true` in the config file to make it the default. If you
+would rather not build an engine, `--app` gives you a chromeless window with no
+extra dependencies at all.
 
 ## Configuration
 
@@ -289,7 +290,7 @@ directory — see [Configuration](#configuration).
 - **M7** `--app` chromeless window (Chromium family) — *done*
 - **M8** content search over the working tree — *done*
 - **M9** `gander(1)` manual page — *done*
-- **M10** experimental embedded webview (WebKitGTK, opt-in) — *done*
+- **M10** experimental embedded webview (WebKitGTK, else Qt Web Engine; opt-in) — *done*
 
 Planned: a portable (non-Linux) live-reload backend.
 

@@ -150,6 +150,10 @@ sudo make uninstall PREFIX=/usr/local
   `--web-root` / `$GANDER_WEB`.
 - **`command not found: gander`** — `$PREFIX/bin` isn't on your `PATH`; see the
   per-user section above.
+- **`--webview` opens a browser tab instead of its own window** — the binary was
+  built without a webview backend. Rebuild with `make WEBVIEW=1` and the WebKitGTK
+  or Qt Web Engine development packages; see
+  [Embedded webview (experimental)](#embedded-webview-experimental).
 - **Permission denied when rebuilding after a `sudo make install`** — the
   previous install left root-owned build artefacts. Remove them and rebuild:
   `sudo make clean && make`.
