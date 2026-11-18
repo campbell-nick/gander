@@ -1,0 +1,46 @@
+# Changelog
+
+All notable changes to gander are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-11-18
+
+The first release: an offline previewer for a local git repository.
+
+### Added
+
+- **File tree** with filtering and collapsible folders; previews refresh when
+  the files on disk change.
+- **Markdown preview** rendered by gander's own subset, with relative images
+  and GIFs shown inline and a safe whitelist for raw HTML.
+- **Media preview**: images, animated GIFs, SVG, `<video>` with byte-range
+  seeking, and audio.
+- **Code preview** with GitHub-style syntax highlighting and a line-number
+  gutter.
+- **Repo home card**: branch, latest tag, a CI-configured chip, license,
+  commit and file counts, a language breakdown, the last commit and the
+  rendered README — all read from disk, never the network.
+- **Git panel**: working-tree changes grouped as staged/changes/untracked with
+  status colours in the tree, a recent-commit log and a per-file unified diff.
+- **Live reload** over Server-Sent Events, refreshing only when the git history
+  changes; `--watch all` also refreshes on every file change.
+- **Configuration** at `~/.config/gander/config`, with a user `style.css`
+  layered over the bundled theme and a `[paths]` section of named shortcuts.
+- **Command line**: `gander <path>`, `gander current`, `gander <name>` for a
+  `[paths]` shortcut, bare `gander` for the command list, and `--version` with
+  the ASCII goose.
+- Bundled GitHub Dark theme.
+
+### Changed
+
+- gander previews git repositories only; pointed at a plain folder it prints a
+  line and exits without serving.
+- Quitting with Ctrl-C no longer echoes `^C`.
+- The CI chip shows only whether CI is configured, never a live pass/fail
+  result, which would mean going online.
+
+[Unreleased]: https://github.com/campbell-nick/gander/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/campbell-nick/gander/releases/tag/v0.1.0
