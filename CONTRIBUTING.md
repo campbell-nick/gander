@@ -27,6 +27,11 @@ uses `inotify`); everything else works anywhere POSIX.
 | `make WEBVIEW=qt` | force the Qt Web Engine backend |
 | `make clean` | remove the object files and the binary |
 
+There is also a small build runner, `./invoke`, that calls `make` for you with a
+`zig build`-style CLI: `./invoke install --prefix ~/.local` (the default step),
+`./invoke test`, `./invoke run`, `./invoke clean`, plus `--release` (optimized,
+stripped) and `--experimental` (embedded webview). See `./invoke --help`.
+
 The default build must stay **libc-only**. If you touch the webview, keep it
 behind the `WEBVIEW` flag so a plain `make` still links only libc.
 

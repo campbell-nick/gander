@@ -21,6 +21,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A `gander(1)` manual page, installed by `make install`.
 - Contributor and architecture notes: `CONTRIBUTING.md`, `docs/architecture.md`
   and `docs/webview.md`.
+- A `./invoke` build runner: a `zig build`-style front end over the Makefile
+  with `install` (default), `test`, `run` and `clean` steps, plus `--prefix`,
+  `--release` (optimized, stripped) and `--experimental` (embedded webview).
 
 ### Fixed
 
