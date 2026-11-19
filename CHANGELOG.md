@@ -22,9 +22,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Contributor and architecture notes: `CONTRIBUTING.md`, `docs/architecture.md`
   and `docs/webview.md`.
 - A `./invoke` build runner: a `zig build`-style front end over the Makefile
-  with `install` (default), `test`, `run`, `clean` and `uninstall` steps, plus
-  `--prefix`, `--release` (optimized, stripped) and `--experimental` (embedded
-  webview).
+  with `install` (default), `update`, `test`, `run`, `clean` and `uninstall`
+  steps, plus `--prefix`, `--release` (optimized, stripped) and `--experimental`
+  (embedded webview).
 
 ### Fixed
 

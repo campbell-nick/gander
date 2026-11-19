@@ -26,6 +26,7 @@ Usage:
 
 Steps (default: install):
   install     build, then install the binary, web assets and man page
+  update      rebuild from source and reinstall over the existing install
   test        build, then run the test suite (make check)
   run         build, then run ./gander .
   clean       remove build artefacts
@@ -40,6 +41,7 @@ Options:
 Examples:
   ./invoke install --prefix /usr --release
   ./invoke install --experimental=qt
+  ./invoke update --prefix ~/.local
   ./invoke run --experimental
   ./invoke uninstall --prefix ~/.local
   ./invoke test
@@ -96,8 +98,8 @@ done
 [ -n "$step" ] || step=install
 
 case "$step" in
-  install | test | run | clean | uninstall) ;;
-  *) die "unknown step: $step (install, test, run, clean or uninstall)" 2 ;;
+  install | update | test | run | clean | uninstall) ;;
+  *) die "unknown step: $step (install, update, test, run, clean or uninstall)" 2 ;;
 esac
 
 case "$exp" in
@@ -228,6 +230,17 @@ case "$step" in
       strip "$prefix/bin/gander" 2>/dev/null || true
     fi
     printf '%s: installed %s/bin/gander\n' "$prog" "$prefix"
+    ;;
+
+  update)
+    writable "$prefix/bin" ||
+      die "cannot write to $prefix/bin (try: sudo ./invoke update --prefix $prefix)"
+    make clean || exit 1
+    run_make PREFIX="$prefix" install || exit 1
+    if [ "$release" = 1 ] && command -v strip >/dev/null 2>&1; then
+      strip "$prefix/bin/gander" 2>/dev/null || true
+    fi
+    printf '%s: updated %s/bin/gander\n' "$prog" "$prefix"
     ;;
 
   uninstall)
