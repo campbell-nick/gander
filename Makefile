@@ -10,9 +10,12 @@ MANDIR   = $(PREFIX)/share/man/man1
 
 CC      ?= cc
 CXX     ?= c++
-CFLAGS  ?= -O2
+# Optimization/flavour flags, kept separate so a caller (e.g. ./invoke) can
+# override them without clobbering the -std/-Wall/-D flags below.
+OPT      ?= -O2
+CFLAGS  ?= $(OPT)
 CFLAGS  += -std=c11 -Wall -Wextra -D_GNU_SOURCE
-CXXFLAGS ?= -O2
+CXXFLAGS ?= $(OPT)
 CXXFLAGS += -std=c++17 -Wall -Wextra -fPIC
 LDFLAGS ?=
 
