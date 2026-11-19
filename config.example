@@ -28,9 +28,3 @@ watch     = commit       # commit (default), all, or off
 # A stylesheet beside this file is loaded automatically; set this to use one
 # somewhere else.
 # style   = ~/.config/gander/style.css
-
-# Named path shortcuts: `gander <name>` opens the repository from anywhere.
-# The name is matched case-insensitively and a leading ~ expands to $HOME.
-
-# [paths]
-# Nexus    = ~/Projects/Nexus

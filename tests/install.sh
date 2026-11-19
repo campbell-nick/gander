@@ -29,6 +29,8 @@ assert_contains "generated config has the host setting" \
   "$(cat "$cfg")" "host      = 127.0.0.1"
 assert_contains "generated config enables webview mode" \
   "$(cat "$cfg")" "webview   = true"
+assert_not_contains "generated config has no [paths] section" \
+  "$(cat "$cfg")" "[paths]"
 assert_contains "sample config is installed under the prefix" \
   "$(cat "$prefix/share/gander/config.example")" "watch     = commit"
 
