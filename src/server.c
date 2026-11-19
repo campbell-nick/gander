@@ -951,8 +951,8 @@ static void open_in_browser(const char *url) {
 }
 
 /* The URL the UI is reachable at, from the host's point of view. A wildcard
- * bind address is reported as loopback, which is where a local browser or
- * webview actually connects. */
+ * bind address is reported as loopback, which is where a local browser
+ * actually connects. */
 static void ui_url(const char *host, int port, const char *token, char *out,
                    size_t outsz) {
   const char *h = host;
@@ -1076,9 +1076,7 @@ static void tty_restore(int fd, const struct termios *saved) {
 
 /* One turn of the server's event loop: wait up to timeout_ms for the listening
  * socket, the watcher or a client to become ready, then service whatever is.
- * Returns 1 when the caller should stop (a poll error), else 0. Kept separate
- * from server_run so the embedded webview can drive it from its own event loop
- * with a zero timeout (see server_tick). */
+ * Returns 1 when the caller should stop (a poll error), else 0. */
 static int server_step(struct server *s, int timeout_ms) {
   struct pollfd pfds[MAX_CONNS + 4];
   struct conn *pmap[MAX_CONNS + 4];
@@ -1182,17 +1180,9 @@ static int server_step(struct server *s, int timeout_ms) {
   return 0;
 }
 
-/* The toolkit calls this from its own event loop. A non-blocking server turn
- * keeps the sockets moving without ever stalling the UI. */
-static int server_tick(void *ud) {
-  if (g_stop)
-    return 1;
-  return server_step((struct server *)ud, 0);
-}
-
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, int do_app, int do_webview,
-               const char *token, int watch_scope, const char *user_css) {
+               int port, int do_open, int do_app, const char *token,
+               int watch_scope, const char *user_css) {
   /* Never let git take its optional locks. Without this, `git status` (which
    * we run to build the tree badges and the home card) refreshes and rewrites
    * .git/index, the watcher sees that as a change, the page refetches status,
@@ -1260,31 +1250,8 @@ int server_run(const char *root, const char *web_root, const char *host,
   set_nonblock(lfd);
   s.lfd = lfd;
 
-  char url[600];
-  ui_url(host, actual, token, url, sizeof url);
-
-  /* The embedded webview is opt-in at build time. Without it, --webview reports
-   * that and a browser is used instead, so the flag is never a dead end. */
-  struct webview_win *wv = NULL;
-  if (do_webview && !webview_available())
-    fprintf(stderr,
-            "gander: this build has no embedded webview "
-            "(rebuild with 'make WEBVIEW=1')\n");
-
-  if (do_open) {
-    if (do_webview && webview_available()) {
-      /* Use the bundled logo as the window icon, next to the served assets. */
-      char icon[4200];
-      snprintf(icon, sizeof icon, "%s/logo.svg", s.web_real);
-      wv = webview_open(url, "gander", icon, 1100, 800);
-      if (!wv)
-        fprintf(stderr,
-                "gander: could not open the embedded webview; "
-                "using a browser instead\n");
-    }
-    if (!wv)
-      launch_ui(host, actual, token, do_app);
-  }
+  if (do_open)
+    launch_ui(host, actual, token, do_app);
 
   s.w = watch_scope != WATCH_OFF ? watch_new(s.root_real, watch_scope) : NULL;
 
@@ -1299,8 +1266,6 @@ int server_run(const char *root, const char *web_root, const char *host,
     printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");
   if (s.user_css[0])
     printf("  style:  %s\n", s.user_css);
-  if (wv)
-    printf("  view:   embedded webview\n");
   printf("\nPress Ctrl-C to stop.\n");
   fflush(stdout);
 
@@ -1312,19 +1277,12 @@ int server_run(const char *root, const char *web_root, const char *host,
   signal(SIGTERM, on_signal);
   signal(SIGPIPE, SIG_IGN);
 
-  /* With a window open the toolkit runs the event loop (so input and rendering
-   * stay responsive) and calls server_tick for socket I/O; otherwise the server
-   * owns the loop directly. Either way it is one thread. */
-  if (wv) {
-    webview_run(wv, server_tick, &s);
-  } else {
-    while (!g_stop)
-      if (server_step(&s, POLL_TIMEOUT_MS))
-        break;
-  }
+  /* One thread: the server owns the loop. */
+  while (!g_stop)
+    if (server_step(&s, POLL_TIMEOUT_MS))
+      break;
 
   tty_restore(tty_q, &tty_saved);
-  webview_destroy(wv);
   farewell();
   while (s.conns)
     conn_free(&s, s.conns);

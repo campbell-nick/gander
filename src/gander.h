@@ -222,42 +222,6 @@ void highlight_to_html(struct strbuf *out, const char *text, size_t len,
 void highlight_lang_to_html(struct strbuf *out, const char *text, size_t len,
                             const char *lang);
 
-/* ------------------------------------------------------------- webview --- */
-
-/* An experimental embedded webview: a real browser view in gander's own window,
- * so `gander --webview` shows the UI without a separate browser.
- *
- * It is opt-in at build time (`make WEBVIEW=1`) and picks a backend: WebKitGTK
- * (GTK) when present, else Qt WebEngine. Every other build compiles inert stubs,
- * and webview_available() reports 0 so callers fall back to a normal browser. No
- * toolkit is pulled in unless a backend macro is defined.
- *
- * The toolkit owns the event loop while the window is open (see webview_run);
- * everything here runs on the one thread that also serves the sockets. */
-struct webview_win;
-
-/* 1 when this binary was built with the embedded webview, else 0. */
-int webview_available(void);
-
-/* Open a window showing url. Returns NULL when it cannot be opened (no display,
- * or a build without the webview). title and w/h are hints for the window
- * manager; NULL/0 mean "gander" and a sensible default size. icon, when
- * non-NULL, is a path to the window icon (the bundled logo); a backend that
- * cannot load it just keeps its default. */
-struct webview_win *webview_open(const char *url, const char *title,
-                                 const char *icon, int w, int h);
-
-/* Run the toolkit's own event loop until the window is closed, calling tick(ud)
- * periodically so the server can service its sockets. tick returns 0 to keep
- * going, non-zero to stop (e.g. on SIGINT). Handing the loop to the toolkit -
- * rather than pumping its events from the server's poll loop - is what keeps
- * input and rendering responsive. Safe on NULL; the inert build returns at
- * once. */
-void webview_run(struct webview_win *wv, int (*tick)(void *ud), void *ud);
-
-/* Destroy the window and free it. Safe on NULL. */
-void webview_destroy(struct webview_win *wv);
-
 /* -------------------------------------------------------------- config --- */
 
 /* User configuration, read from an optional config file. Every field has a
@@ -276,7 +240,6 @@ struct gander_config {
   int port;            /* 0 = pick a free port */
   int do_open;         /* launch a browser on start */
   int do_app;          /* open a chromeless app window (Chromium family) */
-  int do_webview;      /* use the embedded webview (if this build has one) */
   int watch_scope;     /* enum watch_scope */
   char host[256];
   char web_root[4096];
@@ -303,14 +266,12 @@ const char *config_lookup_path(const struct gander_config *cfg,
 /* -------------------------------------------------------------- server --- */
 /* Run the HTTP server until interrupted. root is the directory being
  * previewed; web_root holds the bundled UI assets. When do_app is set the UI is
- * opened as a chromeless app window rather than a normal browser tab. When
- * do_webview is set (and the build has one) the UI is shown in the embedded
- * webview instead, and closing that window stops the server. user_css, when
- * non-empty, is a stylesheet appended after the bundled style.css so it can
- * override the theme. */
+ * opened as a chromeless app window rather than a normal browser tab. user_css,
+ * when non-empty, is a stylesheet appended after the bundled style.css so it
+ * can override the theme. */
 int server_run(const char *root, const char *web_root, const char *host,
-               int port, int do_open, int do_app, int do_webview,
-               const char *token, int watch_scope, const char *user_css);
+               int port, int do_open, int do_app, const char *token,
+               int watch_scope, const char *user_css);
 
 #ifdef __cplusplus
 }

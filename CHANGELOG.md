@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `--webview` / `webview = true` are now the primary names for the chromeless
+  Chromium-family window (formerly `--app` / `app = true`). The old names remain
+  accepted as aliases. No browser engine is built into gander.
+
+### Removed
+
+- The `./invoke` build runner (and its `install`, `update`, `test`, `run`,
+  `clean`, `uninstall` steps, `--prefix`, `--release`, `--experimental` and
+  `--pull` options). Use the Makefile directly: `make`, `make check`,
+  `make install PREFIX=…`, `make WATCH=poll`.
+- The GTK/WebKitGTK and Qt Web Engine backends for the experimental embedded
+  webview, the `WEBVIEW=1|gtk|qt` build knob, and their docs/CI jobs.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

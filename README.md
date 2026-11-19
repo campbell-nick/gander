@@ -42,28 +42,17 @@ same minimal C, a different view of your work.
   status colours in the tree, a recent-commit log, and a per-file unified diff.
 - **Live reload**: refresh only when you commit (or switch branch/tag/fetch),
   keeping your place; `--watch all` also refreshes as you edit files.
-- **Embedded webview** *(experimental)*: an opt-in `make WEBVIEW=1` build lets
-  `--webview` show the UI in gander's own window — WebKitGTK, or Qt WebEngine
-  where GTK is absent — instead of a browser tab.
 - **Offline by construction**: bound to `127.0.0.1`, strict CSP, all assets
   bundled, and no network code at all.
 
 ## Build
 
-Requires a C11 compiler and a POSIX system (Linux for live reload). No
-dependencies beyond libc.
+Requires a C11 compiler and a POSIX system. No dependencies beyond libc.
 
 ```sh
 make
 ./gander .
 ```
-
-An experimental embedded webview is available as an opt-in build. `make
-WEBVIEW=1` links against a browser engine and lets `--webview` show the UI in
-its own window instead of a browser. It prefers WebKitGTK (on GTK3) and falls
-back to Qt WebEngine when GTK is not present; `make WEBVIEW=gtk` or `make
-WEBVIEW=qt` forces one. It is off by default, so a plain `make` stays
-dependency-free. See [docs/webview.md](docs/webview.md) for the details.
 
 ## Install
 
@@ -75,19 +64,6 @@ recommended setup is a per-user install into `~/.local`:
 ```sh
 make
 make install PREFIX=$HOME/.local
-```
-
-A small build runner, `./invoke`, wraps that with a `zig build`-style CLI:
-
-```sh
-./invoke install --prefix ~/.local   # install (the default step)
-./invoke update --prefix ~/.local    # rebuild + reinstall over the install
-./invoke update --pull               # git pull --ff-only, then rebuild + reinstall
-./invoke test                        # run the test suite
-./invoke run                         # build and preview the repo
-./invoke install --release           # -O2 -DNDEBUG, and strip the binary
-./invoke install --experimental      # embedded webview (auto backend)
-./invoke uninstall --prefix ~/.local # remove what install placed
 ```
 
 For system-wide installs, packaging, uninstall and troubleshooting, see
@@ -107,9 +83,8 @@ gander               show this help
   --token <str>     require this token to open the UI
   --config <file>   read settings from this file instead of the default
   --no-open         do not launch a browser
-  --app             open a chromeless app window instead of a tab
-  --webview         show the UI in an embedded window (experimental; needs a
-                    build made with 'make WEBVIEW=1')
+  --webview         open a chromeless window instead of a tab
+  --app             old name for --webview (still accepted)
   --watch <mode>    what live reload reacts to: commit (default), all or off
   --no-watch        disable live reload (same as --watch off)
   -h, --help        show help and exit
@@ -123,22 +98,16 @@ linked worktree. Given a plain folder, gander prints a line and exits. Use
 The UI assets are found via, in order: `--web-root`, `$GANDER_WEB`,
 `<exe-dir>/web`, `<exe-dir>/../share/gander/web`, then `./web`.
 
-`--app` opens the UI in a chromeless window rather than a tab. It needs no extra
-toolkit: it looks for a Chromium-family browser on `PATH` (`chromium`,
+`--webview` opens the UI in a chromeless window rather than a tab. It needs no
+extra toolkit: it looks for a Chromium-family browser on `PATH` (`chromium`,
 `google-chrome`, `brave`, `helium`, `microsoft-edge`, `vivaldi`, …) and launches
 it with `--app=` and a throwaway profile under `$XDG_CACHE_HOME/gander/app`, so
 it never touches your normal browser data. Firefox has no equivalent, so if no
 Chromium-family browser is found, gander says so and opens a normal tab instead.
-Set `app = true` in the config file to make it the default.
+Set `webview = true` in the config file to make it the default.
 
-`--webview` is the embedded alternative: rather than handing the URL to a
-browser, gander shows it in its own window (WebKitGTK, or Qt WebEngine where GTK
-is absent) and stops when you close that window. The window is titled `gander`
-and carries the bundled logo as its icon. It is experimental and only present in
-a `make WEBVIEW=1` build; without one, gander says so and opens a browser
-instead. Set `webview = true` in the config file to make it the default. If you
-would rather not build an engine, `--app` gives you a chromeless window with no
-extra dependencies at all.
+`--app` and `app = true` are the old names for the same thing; they remain
+accepted as aliases. There is no embedded browser engine.
 
 ## Configuration
 
@@ -159,8 +128,8 @@ always win over the file.
 port      = 8080          # 0 picks a free port (default)
 host      = 127.0.0.1     # interface to bind
 open      = true          # launch a browser on start
-app       = false         # open a chromeless app window (Chromium family)
-webview   = false         # show the UI in an embedded window (WEBVIEW=1 build)
+webview   = false         # open a chromeless window (Chromium family)
+app       = false         # old name for webview (still accepted)
 watch     = commit        # commit (default), all or off
 web-root  = /usr/share/gander/web
 token     = hunter2       # require this token to open the UI
@@ -301,18 +270,16 @@ directory — see [Configuration](#configuration).
 - **M4** code preview, syntax highlighting, line numbers — *done*
 - **M5** git panel: status colours, branch, log, per-file diff — *done*
 - **M6** repo home card — *done*
-- **M7** `--app` chromeless window (Chromium family) — *done*
+- **M7** `--webview` chromeless window (Chromium family) — *done*
 - **M8** content search over the working tree — *done*
 - **M9** `gander(1)` manual page — *done*
-- **M10** experimental embedded webview (WebKitGTK, else Qt Web Engine; opt-in) — *done*
-- **M11** portable (non-Linux) live-reload backend — *done*
+- **M10** portable (non-Linux) live-reload backend — *done*
 
 ## Contributing
 
 Bug reports, patches and questions are welcome. Start with
 [CONTRIBUTING.md](CONTRIBUTING.md) for building and testing, and
 [docs/architecture.md](docs/architecture.md) for how the source fits together.
-The embedded webview has its own notes in [docs/webview.md](docs/webview.md).
 
 ## License
 

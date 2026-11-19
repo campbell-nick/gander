@@ -25,21 +25,9 @@ POSIX.
 | `make CC=clang` | build with a specific compiler |
 | `make WATCH=poll` | force the portable polling live-reload backend |
 | `make WATCH=inotify` | force the inotify backend (Linux only) |
-| `make WEBVIEW=1` | experimental embedded webview (auto-picks a backend) |
-| `make WEBVIEW=gtk` | force the WebKitGTK backend |
-| `make WEBVIEW=qt` | force the Qt Web Engine backend |
 | `make clean` | remove the object files and the binary |
 
-There is also a small build runner, `./invoke`, that calls `make` for you with a
-`zig build`-style CLI: `./invoke install --prefix ~/.local` (the default step),
-`./invoke update` (rebuild + reinstall), `./invoke test`, `./invoke run`,
-`./invoke clean`, `./invoke uninstall`, plus `--release` (optimized, stripped),
-`--experimental` (embedded webview) and `--pull` (fast-forward the checkout from
-the remote before updating — the only step that touches the network). See
-`./invoke --help`.
-
-The default build must stay **libc-only**. If you touch the webview, keep it
-behind the `WEBVIEW` flag so a plain `make` still links only libc.
+The default build must stay **libc-only**.
 
 ## Tests
 
@@ -52,6 +40,7 @@ This builds `gander` and runs the POSIX-sh suite under `tests/`:
 - `tests/cli.sh` — command-line behaviour: flags, errors, target resolution.
 - `tests/http.sh` — endpoint smoke tests and security negatives.
 - `tests/md.sh` — the Markdown subset: headings, tables, task lists, rewrites.
+- `tests/watch.sh` — the portable polling live-reload backend.
 
 Each suite is plain `sh`, sources `tests/lib.sh` for its assertions
 (`assert_eq`, `assert_contains`, `assert_refused`, …), makes throwaway git
@@ -87,12 +76,11 @@ the bundled UI in `web/` and the JSON endpoints.
 ## Committing
 
 - Small, focused commits with a `prefix: summary` subject line — `server:`,
-  `webview:`, `repo:`, `docs:`, `tests:`, and so on.
+  `watch:`, `repo:`, `docs:`, `tests:`, and so on.
 - Explain *why* in the body when it is not obvious.
 - Keep [`CHANGELOG.md`](CHANGELOG.md) current under `[Unreleased]`.
 
 ## Reporting bugs
 
 Open an issue with your platform, the gander version (`gander --version`), and
-the exact command you ran. For the embedded webview, mention whether you built
-with `WEBVIEW=gtk` or `WEBVIEW=qt` and whether the window appeared at all.
+the exact command you ran.

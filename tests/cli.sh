@@ -12,6 +12,35 @@ repo="$TMPROOT/repo"
 make_repo "$repo"
 real_repo=$(cd "$repo" && pwd -P)
 
+# A fake Chromium makes the --app/--webview launch observable without opening a
+# real window. Every argument it receives is written to browser-args.
+fake_browser() {
+  mkdir -p "$TMPROOT/fakebin"
+  cat >"$TMPROOT/fakebin/chromium" <<EOF
+#!/bin/sh
+printf '%s\n' "\$@" >"$TMPROOT/browser-args"
+EOF
+  chmod +x "$TMPROOT/fakebin/chromium"
+}
+
+# start_server_with_browser <workdir> <target> [extra args...]
+start_server_with_browser() {
+  _wd=$1
+  shift
+  SERVER_OUT=$(mktemp "$TMPROOT/server.XXXXXX")
+  (cd "$_wd" && PATH="$TMPROOT/fakebin:$PATH" "$GANDER_BIN" "$@" --port 0) \
+    >"$SERVER_OUT" 2>&1 &
+  SERVER_PID=$!
+  _wait_url || return 1
+  _i=0
+  while [ ! -f "$TMPROOT/browser-args" ] && [ "$_i" -lt 100 ]; do
+    kill -0 "$SERVER_PID" 2>/dev/null || return 1
+    sleep 0.05
+    _i=$((_i + 1))
+  done
+  [ -f "$TMPROOT/browser-args" ]
+}
+
 # --- informational flags ------------------------------------------------------
 
 run_gander --version
@@ -119,56 +148,67 @@ else
 fi
 stop_server
 
-# --- --app --------------------------------------------------------------------
-
-run_gander --help
-assert_contains "--help lists --app" "$OUT" "--app"
-
-# --app changes only how the UI is launched, so the server still comes up.
-if start_server_in "$repo" . --app; then
-  assert_contains "--app still serves the UI" "$(cat "$SERVER_OUT")" "root:   $real_repo"
-else
-  fail "--app still serves the UI" "server did not start"
-fi
-stop_server
-
-# The app = true config key is accepted.
-cfg2="$TMPROOT/config-app"
-printf 'app = true\n' >"$cfg2"
-run_gander --config "$cfg2" --help
-assert_eq "config 'app = true' is accepted" 0 "$STATUS"
-
 # --- --webview ----------------------------------------------------------------
 
 run_gander --help
 assert_contains "--help lists --webview" "$OUT" "--webview"
+assert_contains "--help lists the --app alias" "$OUT" "--app"
 
-# The default build has no embedded webview: --webview says so and still serves.
-SERVER_OUT=$(mktemp "$TMPROOT/server.XXXXXX")
-(cd "$repo" && exec "$GANDER_BIN" . --webview --no-open --port 0) >"$SERVER_OUT" 2>&1 &
-SERVER_PID=$!
-if _wait_url; then
-  assert_contains "--webview without a webview build explains itself" \
-    "$(cat "$SERVER_OUT")" "no embedded webview"
-  assert_contains "--webview still serves the UI" \
-    "$(cat "$SERVER_OUT")" "root:   $real_repo"
+# The fake browser makes the chromeless launch observable.
+fake_browser
+if start_server_with_browser "$repo" . --webview; then
+  assert_contains "--webview serves the UI" "$(cat "$SERVER_OUT")" "root:   $real_repo"
 else
-  fail "--webview still serves the UI" "server did not start"
+  fail "--webview serves the UI" "server did not start"
 fi
+assert_contains "--webview opens a chromeless app window" \
+  "$(cat "$TMPROOT/browser-args")" "--app=http://"
 stop_server
 
-# The webview = true config key is accepted.
+# The webview = true config key selects the same mode.
 cfg3="$TMPROOT/config-webview"
 printf 'webview = true\n' >"$cfg3"
-run_gander --config "$cfg3" --help
-assert_eq "config 'webview = true' is accepted" 0 "$STATUS"
+rm -f "$TMPROOT/browser-args"
+if start_server_with_browser "$repo" . --config "$cfg3"; then
+  assert_contains "config 'webview = true' serves the UI" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "config 'webview = true' serves the UI" "server did not start"
+fi
+assert_contains "config 'webview = true' opens a chromeless app window" \
+  "$(cat "$TMPROOT/browser-args")" "--app=http://"
+stop_server
+
+# --- --app compatibility alias -------------------------------------------------
+
+rm -f "$TMPROOT/browser-args"
+if start_server_with_browser "$repo" . --app; then
+  assert_contains "--app alias serves the UI" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "--app alias serves the UI" "server did not start"
+fi
+assert_contains "--app alias opens a chromeless app window" \
+  "$(cat "$TMPROOT/browser-args")" "--app=http://"
+stop_server
+
+# The app = true config key is still accepted.
+cfg2="$TMPROOT/config-app"
+printf 'app = true\n' >"$cfg2"
+rm -f "$TMPROOT/browser-args"
+if start_server_with_browser "$repo" . --config "$cfg2"; then
+  assert_contains "config 'app = true' serves the UI" "$(cat "$SERVER_OUT")" "root:   $real_repo"
+else
+  fail "config 'app = true' serves the UI" "server did not start"
+fi
+assert_contains "config 'app = true' opens a chromeless app window" \
+  "$(cat "$TMPROOT/browser-args")" "--app=http://"
+stop_server
 
 # --- manual page --------------------------------------------------------------
 
 if [ -f man/gander.1 ]; then
   assert_contains "man page names gander" "$(cat man/gander.1)" ".TH GANDER 1"
   assert_contains "man page documents --app" "$(cat man/gander.1)" "chromeless"
-  assert_contains "man page documents --webview" "$(cat man/gander.1)" "embedded webview"
+  assert_contains "man page documents --webview" "$(cat man/gander.1)" '\-\-webview'
 else
   fail "man page exists" "man/gander.1 not found (run make check from the repo root)"
 fi

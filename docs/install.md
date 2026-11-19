@@ -9,9 +9,6 @@ nothing to fetch at runtime and no dependencies beyond libc.
 - A POSIX system. Live reload uses `inotify` on Linux and a portable
   scan-and-diff fallback elsewhere, so it works everywhere gander builds.
 - `make` (optional — see the one-liner below).
-- Optional: a browser engine for the experimental embedded webview
-  (`make WEBVIEW=1`) — the `gtk+-3.0` and `webkit2gtk-4.1` development packages,
-  or Qt 6 Web Engine where GTK is not wanted.
 
 ## Build
 
@@ -31,23 +28,6 @@ Or without `make`:
 ```sh
 cc -O2 -std=c11 -D_GNU_SOURCE -o gander src/*.c
 ```
-
-### Embedded webview (experimental)
-
-`gander` can show the UI in its own window instead of opening a browser. This is
-opt-in, so the default build stays libc-only:
-
-```sh
-make WEBVIEW=1
-./gander . --webview
-```
-
-`make` picks a backend automatically: **WebKitGTK** (the `gtk+-3.0` and
-`webkit2gtk-4.1` development packages) when it is present, otherwise **Qt Web
-Engine** (`Qt6WebEngineWidgets`, from `dev-qt/qtwebengine`). Force one with
-`make WEBVIEW=gtk` or `make WEBVIEW=qt`. If neither is found, `make` says so and
-stops. Closing the window stops the server. Without a `WEBVIEW=1` build,
-`--webview` prints a note and opens a browser instead.
 
 ## Install
 
@@ -150,10 +130,6 @@ sudo make uninstall PREFIX=/usr/local
   `--web-root` / `$GANDER_WEB`.
 - **`command not found: gander`** — `$PREFIX/bin` isn't on your `PATH`; see the
   per-user section above.
-- **`--webview` opens a browser tab instead of its own window** — the binary was
-  built without a webview backend. Rebuild with `make WEBVIEW=1` and the WebKitGTK
-  or Qt Web Engine development packages; see
-  [Embedded webview (experimental)](#embedded-webview-experimental).
 - **Permission denied when rebuilding after a `sudo make install`** — the
   previous install left root-owned build artefacts. Remove them and rebuild:
   `sudo make clean && make`.

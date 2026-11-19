@@ -90,7 +90,7 @@ instead of the default location.
 .B \-\-no-open
 Do not launch a browser or app window.
 .TP
-.B \-\-app
+.B \-\-webview
 Open the UI in a chromeless window instead of a browser tab. A
 Chromium-family browser
 .RB ( chromium ,
@@ -104,20 +104,14 @@ and friends) is launched with
 and a throwaway profile under the cache directory, so your normal browser data
 is never touched. If no such browser is found,
 .B gander
-says so and opens a normal tab instead. Firefox has no equivalent.
+says so and opens a normal tab instead. Firefox has no equivalent. No browser
+engine is built into
+.BR gander .
 .TP
-.B \-\-webview
-Show the UI in an embedded window instead of a browser. This is experimental and
-only present in a build made with
-.BR "make WEBVIEW=1" .
-That build prefers WebKitGTK (GTK3) and falls back to Qt Web Engine when GTK is
-not present; force one with
-.B "make WEBVIEW=gtk"
-or
-.BR "make WEBVIEW=qt" .
-A build without a webview prints a note and opens a browser instead. The window
-uses the bundled gander logo as its icon. Closing the embedded window stops the
-server.
+.B \-\-app
+Old name for
+.BR \-\-webview ;
+still accepted as an alias.
 .TP
 .B \-\-watch " " \fImode\fR
 What live reload reacts to. One of
@@ -171,21 +165,21 @@ or
 whether to launch a browser on start (default
 .BR true ).
 .TP
-.B app
-.B true
-or
-.BR false ;
-open a chromeless app window (default
-.BR false ).
-.TP
 .B webview
 .B true
 or
 .BR false ;
-use the embedded webview (default
+open a chromeless window (default
+.BR false ).
+.TP
+.B app
+.B true
+or
 .BR false ;
-see
-.BR \-\-webview ).
+old name for
+.BR webview ,
+still accepted (default
+.BR false ).
 .TP
 .B watch
 .BR commit ", " all " or " off .

@@ -6,8 +6,7 @@ contains no network code: everything it shows is read from disk (and from the
 local `git` CLI).
 
 This page is a map of the source. For building and testing, see
-[CONTRIBUTING.md](../CONTRIBUTING.md); for the opt-in window, see
-[webview.md](webview.md).
+[CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## The shape of a run
 
@@ -41,8 +40,6 @@ argv ─▶ main.c ──▶ config.c ──▶ server_run()  (server.c)
 | `html.c` | A safe renderer for the raw HTML that READMEs embed (tag/attribute whitelist). |
 | `highlight.c` | Source code → HTML spans, GitHub-style, for a handful of languages. |
 | `util.c` | Helpers: `xmalloc`, a string buffer, JSON escaping, MIME types. |
-| `webview.c` | The embedded webview's GTK backend, plus the inert stubs the default build compiles. |
-| `webview_qt.cpp` | The embedded webview's Qt Web Engine backend (the only C++ unit). |
 | `logo.h` | The ASCII goose printed by `--version`. |
 | `gander.h` | Shared declarations for everything above. |
 | `web/` | The bundled UI served to the browser: `index.html`, `app.js`, `style.css`, `logo.svg`. |
@@ -101,29 +98,9 @@ All git commands run with `GIT_OPTIONAL_LOCKS=0` so `git status` never rewrites
 the index — otherwise that write would be seen as a change and the page would
 refresh in a loop.
 
-## The embedded webview
-
-The window is an optional, opt-in layer (see [webview.md](webview.md)). Rather
-than pumping toolkit events from the server's `poll()` loop, gander hands the
-loop to the toolkit: `webview_run()` runs Qt's `exec()` or GTK's `gtk_main()`,
-and a 4 ms timer calls back into `server_tick()`, which does a non-blocking
-`server_step()`. That keeps input and rendering responsive while the sockets
-keep moving on the same thread. The default build compiles inert stubs and never
-links a toolkit.
-
-## Build variants
-
-- **Default** (`make`): libc only. `webview.c` compiles its inert stubs.
-- **`make WEBVIEW=1`**: auto-selects WebKitGTK (`gtk+-3.0`, `webkit2gtk-4.1`)
-  or, failing that, Qt Web Engine (`Qt6WebEngineWidgets`).
-- **`make WEBVIEW=gtk` / `WEBVIEW=qt`**: force one backend.
-
-The Qt backend links with `$(CXX)`; the Makefile always rebuilds the webview
-glue so switching backends cannot reuse a stale object.
-
 ## Tests
 
-`make check` runs the POSIX-sh suite in `tests/` (`cli`, `http`, `md`). Each
+`make check` runs the POSIX-sh suite in `tests/` (`cli`, `http`, `md`, `watch`). Each
 suite sources `tests/lib.sh`, builds throwaway git repositories under `$TMPDIR`,
 and starts a real server on a free port. See
 [CONTRIBUTING.md](../CONTRIBUTING.md#tests) for how to add a case.
