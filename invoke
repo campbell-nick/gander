@@ -36,12 +36,14 @@ Options:
   --prefix DIR             install prefix (default: ~/.local)
   --release                -O2 -DNDEBUG, and strip the installed binary
   --experimental[=gtk|qt]  embedded webview (auto backend, or forced)
+  --pull                   with update: git pull --ff-only first (needs the network)
   -h, --help               show this usage
 
 Examples:
   ./invoke install --prefix /usr --release
   ./invoke install --experimental=qt
   ./invoke update --prefix ~/.local
+  ./invoke update --pull
   ./invoke run --experimental
   ./invoke uninstall --prefix ~/.local
   ./invoke test
@@ -56,6 +58,7 @@ step=
 prefix=
 release=0
 exp=off
+pull=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -74,6 +77,10 @@ while [ $# -gt 0 ]; do
       ;;
     --release)
       release=1
+      shift
+      ;;
+    --pull)
+      pull=1
       shift
       ;;
     --experimental)
@@ -101,6 +108,10 @@ case "$step" in
   install | update | test | run | clean | uninstall) ;;
   *) die "unknown step: $step (install, update, test, run, clean or uninstall)" 2 ;;
 esac
+
+if [ "$pull" = 1 ] && [ "$step" != update ]; then
+  die "--pull is only valid with the update step" 2
+fi
 
 case "$exp" in
   off | auto | gtk | qt) ;;
@@ -204,6 +215,19 @@ writable() {
   [ -w "$d" ]
 }
 
+# Fast-forward the current checkout, refusing on a dirty tree. The only place
+# invoke touches the network, and only when --pull is given.
+git_pull() {
+  command -v git >/dev/null 2>&1 || die "--pull needs git" 1
+  git rev-parse --git-dir >/dev/null 2>&1 ||
+    die "--pull needs a git checkout (this is not a git repository)" 1
+  [ -z "$(git status --porcelain --untracked-files=no)" ] ||
+    die "the working tree has uncommitted changes; commit or stash them before --pull" 1
+  printf '%s: git pull --ff-only\n' "$prog" >&2
+  git pull --ff-only ||
+    die "git pull --ff-only failed (no upstream, diverged, or offline?)" 1
+}
+
 case "$step" in
   clean)
     make clean
@@ -235,6 +259,9 @@ case "$step" in
   update)
     writable "$prefix/bin" ||
       die "cannot write to $prefix/bin (try: sudo ./invoke update --prefix $prefix)"
+    if [ "$pull" = 1 ]; then
+      git_pull
+    fi
     make clean || exit 1
     run_make PREFIX="$prefix" install || exit 1
     if [ "$release" = 1 ] && command -v strip >/dev/null 2>&1; then

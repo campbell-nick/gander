@@ -82,6 +82,7 @@ A small build runner, `./invoke`, wraps that with a `zig build`-style CLI:
 ```sh
 ./invoke install --prefix ~/.local   # install (the default step)
 ./invoke update --prefix ~/.local    # rebuild + reinstall over the install
+./invoke update --pull               # git pull --ff-only, then rebuild + reinstall
 ./invoke test                        # run the test suite
 ./invoke run                         # build and preview the repo
 ./invoke install --release           # -O2 -DNDEBUG, and strip the binary

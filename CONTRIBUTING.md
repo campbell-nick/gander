@@ -30,8 +30,10 @@ uses `inotify`); everything else works anywhere POSIX.
 There is also a small build runner, `./invoke`, that calls `make` for you with a
 `zig build`-style CLI: `./invoke install --prefix ~/.local` (the default step),
 `./invoke update` (rebuild + reinstall), `./invoke test`, `./invoke run`,
-`./invoke clean`, `./invoke uninstall`, plus `--release` (optimized, stripped)
-and `--experimental` (embedded webview). See `./invoke --help`.
+`./invoke clean`, `./invoke uninstall`, plus `--release` (optimized, stripped),
+`--experimental` (embedded webview) and `--pull` (fast-forward the checkout from
+the remote before updating — the only step that touches the network). See
+`./invoke --help`.
 
 The default build must stay **libc-only**. If you touch the webview, keep it
 behind the `WEBVIEW` flag so a plain `make` still links only libc.
