@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
 ### Added
 
 - `--app` opens the UI in a chromeless Chromium-family window instead of a
@@ -74,5 +76,6 @@ The first release: an offline previewer for a local git repository.
 - The CI chip shows only whether CI is configured, never a live pass/fail
   result, which would mean going online.
 
-[Unreleased]: https://github.com/campbell-nick/gander/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/campbell-nick/gander/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/campbell-nick/gander/releases/tag/v0.2.0
 [0.1.0]: https://github.com/campbell-nick/gander/releases/tag/v0.1.0
