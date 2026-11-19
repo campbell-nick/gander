@@ -13,8 +13,9 @@ make
 ./gander .          # preview this repository
 ```
 
-`make` needs a C11 compiler and a POSIX system. Live reload is Linux-only (it
-uses `inotify`); everything else works anywhere POSIX.
+`make` needs a C11 compiler and a POSIX system. Live reload uses `inotify` on
+Linux and a portable scan-and-diff fallback elsewhere; everything works anywhere
+POSIX.
 
 ## Building
 
@@ -22,6 +23,8 @@ uses `inotify`); everything else works anywhere POSIX.
 |---|---|
 | `make` | the default build — libc only |
 | `make CC=clang` | build with a specific compiler |
+| `make WATCH=poll` | force the portable polling live-reload backend |
+| `make WATCH=inotify` | force the inotify backend (Linux only) |
 | `make WEBVIEW=1` | experimental embedded webview (auto-picks a backend) |
 | `make WEBVIEW=gtk` | force the WebKitGTK backend |
 | `make WEBVIEW=qt` | force the Qt Web Engine backend |

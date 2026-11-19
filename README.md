@@ -195,11 +195,15 @@ above if your override lives somewhere else.
 
 ## Live reload
 
-`gander` watches the previewed directory with `inotify`, debounces bursts of
-changes (~120 ms), and pushes them to the page over Server-Sent Events
-(`/api/events`). The page refetches the tree and re-renders the current preview
-when it changes, preserving your selection, expanded folders and scroll
-position. Media is cache-busted so an updated GIF or image actually reloads.
+`gander` watches the previewed directory, debounces bursts of changes (~120 ms),
+and pushes them to the page over Server-Sent Events (`/api/events`). The page
+refetches the tree and re-renders the current preview when it changes, preserving
+your selection, expanded folders and scroll position. Media is cache-busted so an
+updated GIF or image actually reloads.
+
+On Linux it uses `inotify`; on every other system it falls back to a portable
+scan-and-diff of the tree, so live reload works wherever gander builds. A build
+can force either backend with `make WATCH=poll` or `make WATCH=inotify`.
 
 By default it refreshes **only when the git history changes** — a commit, a tag,
 a branch switch or a fetch (`.git/HEAD`, `refs/`, `logs/` and friends). Editing
@@ -210,9 +214,6 @@ or saving files does not refresh the page, so it stays put while you work.
 All git commands run with `GIT_OPTIONAL_LOCKS=0`, so `git status` never rewrites
 the index — otherwise that write would be seen as a change and the page would
 refresh in a loop.
-
-Live reload is Linux-only for now; on other platforms `gander` still serves
-everything, just without automatic refresh.
 
 ## CI status
 
@@ -304,8 +305,7 @@ directory — see [Configuration](#configuration).
 - **M8** content search over the working tree — *done*
 - **M9** `gander(1)` manual page — *done*
 - **M10** experimental embedded webview (WebKitGTK, else Qt Web Engine; opt-in) — *done*
-
-Planned: a portable (non-Linux) live-reload backend.
+- **M11** portable (non-Linux) live-reload backend — *done*
 
 ## Contributing
 

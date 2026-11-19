@@ -6,8 +6,8 @@ nothing to fetch at runtime and no dependencies beyond libc.
 ## Requirements
 
 - A C11 compiler (`cc`, `gcc` or `clang`).
-- A POSIX system. **Live reload is Linux-only** (it uses `inotify`); on other
-  platforms gander still serves everything, just without automatic refresh.
+- A POSIX system. Live reload uses `inotify` on Linux and a portable
+  scan-and-diff fallback elsewhere, so it works everywhere gander builds.
 - `make` (optional — see the one-liner below).
 - Optional: a browser engine for the experimental embedded webview
   (`make WEBVIEW=1`) — the `gtk+-3.0` and `webkit2gtk-4.1` development packages,

@@ -29,6 +29,23 @@ LDFLAGS ?=
 WEBVIEW ?= 0
 WV_BACKEND := $(WEBVIEW)
 
+# Live-reload backend. Linux defaults to inotify; every other system falls back
+# to a portable polling scan. Override to force one (mainly to exercise the
+# portable path on Linux):
+#
+#   make WATCH=auto      inotify on Linux, polling elsewhere (default)
+#   make WATCH=inotify   force inotify     (Linux only)
+#   make WATCH=poll      force the portable polling scan
+#
+WATCH ?= auto
+ifeq ($(WATCH),poll)
+  CFLAGS += -DGANDER_WATCH_POLL
+else ifeq ($(WATCH),inotify)
+  CFLAGS += -DGANDER_WATCH_INOTIFY
+else ifneq ($(WATCH),auto)
+  $(error WATCH must be auto, inotify or poll)
+endif
+
 ifeq ($(WEBVIEW),1)
   ifneq ($(shell pkg-config --exists gtk+-3.0 webkit2gtk-4.1 2>/dev/null && echo y),)
     WV_BACKEND := gtk

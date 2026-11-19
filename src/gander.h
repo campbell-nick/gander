@@ -86,16 +86,23 @@ enum watch_scope {
 };
 
 /* Start watching root. scope selects what counts as a change. Returns NULL
- * when watching is unavailable (e.g. inotify is missing); the caller should
- * carry on without it. */
+ * when watching is unavailable; the caller should carry on without it. */
 struct watcher *watch_new(const char *root, int scope);
 void watch_free(struct watcher *w);
 
-/* File descriptor to poll for readability, or -1. */
+/* File descriptor to poll for readability, or -1 when the backend is not
+ * event-driven (the polling backend). */
 int watch_fd(struct watcher *w);
 
 /* Drain pending inotify events. Call when watch_fd() is readable. */
 void watch_drain(struct watcher *w);
+
+/* Polling backend only: scan for changes if the interval has elapsed. A no-op
+ * for inotify, whose fd drives watch_drain instead. Call once per server turn. */
+void watch_poll(struct watcher *w);
+
+/* Name of the compiled-in backend ("inotify" or "poll"), for the banner. */
+const char *watch_backend(void);
 
 /* Returns 1 once a debounced batch of changes is ready. When it does, fills
  * *paths with malloc'd repo-relative paths (caller frees each and the array)

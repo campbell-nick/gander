@@ -124,6 +124,10 @@ What live reload reacts to. One of
 .BR commit " (the default: a commit, tag, branch switch or fetch),"
 .BR all " (every file change) or"
 .BR off .
+Live reload uses
+.B inotify
+on Linux and a portable scan-and-diff elsewhere, so it works wherever gander
+builds.
 .TP
 .B \-\-no-watch
 Disable live reload (same as

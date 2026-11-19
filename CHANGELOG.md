@@ -25,6 +25,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with `install` (default), `update`, `test`, `run`, `clean` and `uninstall`
   steps, plus `--prefix`, `--release` (optimized, stripped), `--experimental`
   (embedded webview) and `--pull` (fast-forward the checkout before updating).
+- A portable live-reload backend. Linux still uses inotify; every other system
+  (and any build with `make WATCH=poll`) falls back to a periodic scan-and-diff
+  of the tree, so live reload now works off Linux too. The banner names the
+  backend in use.
 
 ### Fixed
 

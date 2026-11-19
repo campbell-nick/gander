@@ -1135,6 +1135,9 @@ static int server_step(struct server *s, int timeout_ms) {
   if (wslot >= 0 && (pfds[wslot].revents & POLLIN))
     watch_drain(s->w);
 
+  /* The polling backend has no fd to poll; it scans on its own schedule. */
+  watch_poll(s->w);
+
   for (int i = 1; i < nf; i++) {
     struct conn *c = pmap[i];
     if (!c)
@@ -1290,7 +1293,7 @@ int server_run(const char *root, const char *web_root, const char *host,
   printf("  url:    http://%s:%d/%s\n", host, actual,
          (token && token[0]) ? "?token=***" : "");
   if (s.w)
-    printf("  watch:  inotify (%s)\n",
+    printf("  watch:  %s (%s)\n", watch_backend(),
            watch_scope == WATCH_COMMIT ? "commit" : "all files");
   else
     printf("  watch:  %s\n", watch_scope == WATCH_OFF ? "disabled" : "unavailable");

@@ -16,7 +16,7 @@ argv ─▶ main.c ──▶ config.c ──▶ server_run()  (server.c)
                                  │
                                  ├─ web/  (bundled UI: index.html, app.js, style.css, logo.svg)
                                  ├─ repo.c ──▶ local git CLI + filesystem
-                                 └─ watch.c (inotify) ──▶ SSE ──▶ app.js
+                                 └─ watch.c (inotify/poll) ──▶ SSE ──▶ app.js
 ```
 
 1. `main.c` parses the command line, resolves the target (`path`, a `[paths]`
@@ -36,7 +36,7 @@ argv ─▶ main.c ──▶ config.c ──▶ server_run()  (server.c)
 | `server.c` | The HTTP server: a single-threaded `poll()` loop, routing, static assets, `/raw`, and Server-Sent Events. |
 | `repo.c` | Repository metadata, entirely from disk: tree, status, log, diff, search, tags, languages, CI, license, README. |
 | `walk.c` | Collect the file tree of the previewed directory. |
-| `watch.c` | Recursive `inotify` watcher with debounce, for live reload (Linux only). |
+| `watch.c` | Live-reload watcher with debounce: `inotify` on Linux, a portable scan-and-diff (`WATCH=poll`) elsewhere. |
 | `md.c` | The Markdown subset → HTML, with relative links/images rewritten to `/raw/<path>`. |
 | `html.c` | A safe renderer for the raw HTML that READMEs embed (tag/attribute whitelist). |
 | `highlight.c` | Source code → HTML spans, GitHub-style, for a handful of languages. |
@@ -50,9 +50,11 @@ argv ─▶ main.c ──▶ config.c ──▶ server_run()  (server.c)
 ## The server loop
 
 Everything runs on **one thread**. `server_step()` builds a `pollfd` set — the
-listening socket, the watcher's fd, and one entry per connection — and waits up
-to 40 ms. When it wakes it accepts new connections, reads and answers requests,
-drains the watcher, and reaps closed connections.
+listening socket, the watcher's fd (when the backend is event-driven), and one
+entry per connection — and waits up to 40 ms. When it wakes it accepts new
+connections, reads and answers requests, drains the watcher, polls the watcher
+again (a no-op for `inotify`, a periodic scan for the polling backend), and
+reaps closed connections.
 
 Each connection is a small state machine:
 
@@ -80,12 +82,20 @@ strict `Content-Security-Policy` stops the page loading anything remote.
 
 ## Live reload
 
-`watch.c` watches the repository with `inotify`. `--watch commit` (the default)
-reacts only to git-history changes; `--watch all` reacts to any file change.
-Events are debounced (`DEBOUNCE_MS`, 120 ms) and then drained with
-`watch_take()`, which `server.c` turns into an `event: change` SSE frame for
-every `C_SSE` connection. The page (`web/app.js`) refetches the tree and
-re-renders the current preview, keeping the selection and scroll position.
+`watch.c` has two backends behind one API. On Linux (or with
+`-DGANDER_WATCH_INOTIFY`) it uses `inotify`: the kernel reports events on a fd,
+`server.c` adds that fd to its `poll()` set, and `watch_drain()` reads them. On
+every other system (or with `-DGANDER_WATCH_POLL`) it uses a portable polling
+backend: `watch_fd()` returns `-1` and `server.c` calls `watch_poll()` each turn,
+which scans the tree every `POLL_INTERVAL_MS` (500 ms) and diffs it against the
+previous snapshot. The Makefile's `WATCH` knob selects the backend; the banner
+names the one compiled in.
+
+`--watch commit` (the default) reacts only to git-history changes; `--watch all`
+reacts to any file change. Events are debounced (`DEBOUNCE_MS`, 120 ms) and then
+drained with `watch_take()`, which `server.c` turns into an `event: change` SSE
+frame for every `C_SSE` connection. The page (`web/app.js`) refetches the tree
+and re-renders the current preview, keeping the selection and scroll position.
 
 All git commands run with `GIT_OPTIONAL_LOCKS=0` so `git status` never rewrites
 the index — otherwise that write would be seen as a change and the page would
