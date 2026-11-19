@@ -85,6 +85,7 @@ A small build runner, `./invoke`, wraps that with a `zig build`-style CLI:
 ./invoke run                         # build and preview the repo
 ./invoke install --release           # -O2 -DNDEBUG, and strip the binary
 ./invoke install --experimental      # embedded webview (auto backend)
+./invoke uninstall --prefix ~/.local # remove what install placed
 ```
 
 For system-wide installs, packaging, uninstall and troubleshooting, see

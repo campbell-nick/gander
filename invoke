@@ -25,10 +25,11 @@ Usage:
   ./invoke [step] [options]
 
 Steps (default: install):
-  install   build, then install the binary, web assets and man page
-  test      build, then run the test suite (make check)
-  run       build, then run ./gander .
-  clean     remove build artefacts
+  install     build, then install the binary, web assets and man page
+  test        build, then run the test suite (make check)
+  run         build, then run ./gander .
+  clean       remove build artefacts
+  uninstall   remove the installed binary, web assets and man page
 
 Options:
   --prefix DIR             install prefix (default: ~/.local)
@@ -40,6 +41,7 @@ Examples:
   ./invoke install --prefix /usr --release
   ./invoke install --experimental=qt
   ./invoke run --experimental
+  ./invoke uninstall --prefix ~/.local
   ./invoke test
 EOF
 }
@@ -94,8 +96,8 @@ done
 [ -n "$step" ] || step=install
 
 case "$step" in
-  install | test | run | clean) ;;
-  *) die "unknown step: $step (install, test, run or clean)" 2 ;;
+  install | test | run | clean | uninstall) ;;
+  *) die "unknown step: $step (install, test, run, clean or uninstall)" 2 ;;
 esac
 
 case "$exp" in
@@ -137,37 +139,40 @@ EOF
 }
 
 # WEBVIEW value for make: empty = no webview, 1 = auto, gtk/qt = forced.
+# Only the steps that build need a backend; clean and uninstall do not.
 wv=
-case "$exp" in
-  off) ;;
-  auto)
-    if have_gtk || have_qt; then
-      wv=1
-    else
-      printf '%s: no embedded-webview backend found.\n' "$prog" >&2
-      backend_hints
-      exit 1
-    fi
-    ;;
-  gtk)
-    if have_gtk; then
-      wv=gtk
-    else
-      printf '%s: the WebKitGTK backend is not installed.\n' "$prog" >&2
-      backend_hints
-      exit 1
-    fi
-    ;;
-  qt)
-    if have_qt; then
-      wv=qt
-    else
-      printf '%s: the Qt Web Engine backend is not installed.\n' "$prog" >&2
-      backend_hints
-      exit 1
-    fi
-    ;;
-esac
+if [ "$step" != clean ] && [ "$step" != uninstall ]; then
+  case "$exp" in
+    off) ;;
+    auto)
+      if have_gtk || have_qt; then
+        wv=1
+      else
+        printf '%s: no embedded-webview backend found.\n' "$prog" >&2
+        backend_hints
+        exit 1
+      fi
+      ;;
+    gtk)
+      if have_gtk; then
+        wv=gtk
+      else
+        printf '%s: the WebKitGTK backend is not installed.\n' "$prog" >&2
+        backend_hints
+        exit 1
+      fi
+      ;;
+    qt)
+      if have_qt; then
+        wv=qt
+      else
+        printf '%s: the Qt Web Engine backend is not installed.\n' "$prog" >&2
+        backend_hints
+        exit 1
+      fi
+      ;;
+  esac
+fi
 
 # ---------------------------------------------------------------- make ----- #
 
@@ -223,5 +228,12 @@ case "$step" in
       strip "$prefix/bin/gander" 2>/dev/null || true
     fi
     printf '%s: installed %s/bin/gander\n' "$prog" "$prefix"
+    ;;
+
+  uninstall)
+    writable "$prefix/bin" ||
+      die "cannot write to $prefix/bin (try: sudo ./invoke uninstall --prefix $prefix)"
+    make uninstall PREFIX="$prefix" || exit 1
+    printf '%s: uninstalled %s/bin/gander\n' "$prog" "$prefix"
     ;;
 esac
