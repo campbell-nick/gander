@@ -16,7 +16,7 @@ GANDER_BIN="$root/gander"
 export GANDER_BIN
 
 failed=0
-for suite in cli http md watch; do
+for suite in cli http md watch install; do
   printf '\n== %s ==\n' "$suite"
   if sh "$here/$suite.sh"; then
     :

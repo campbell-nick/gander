@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `make install` now ships `config.example` and creates a user config at
+  `$XDG_CONFIG_HOME/gander/config` (or `~/.config/gander/config`) when one does
+  not already exist. `DESTDIR` installs skip the user-config step.
+
 ### Changed
 
 - `--webview` / `webview = true` are now the primary names for the chromeless

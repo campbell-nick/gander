@@ -1,0 +1,36 @@
+# gander configuration
+#
+# make install copies this to $XDG_CONFIG_HOME/gander/config (or
+# ~/.config/gander/config) when no config exists yet. It never overwrites an
+# existing file. See gander(1) for every setting.
+
+# --- server ------------------------------------------------------------------
+
+port      = 0            # 0 picks a free port (default)
+host      = 127.0.0.1    # interface to bind (default)
+
+# --- UI launch ---------------------------------------------------------------
+
+open      = true         # launch a browser on start (default)
+webview   = true         # chromeless window; built-in default is false
+# app     = true         # old name for webview; no need to set both
+
+# --- live reload -------------------------------------------------------------
+
+watch     = commit       # commit (default), all, or off
+
+# --- assets and access -------------------------------------------------------
+
+# Leave web-root unset to auto-detect the bundled assets next to the binary.
+# web-root = /usr/share/gander/web
+# No token by default; uncomment to require ?token=... in the URL.
+# token   = hunter2
+# A stylesheet beside this file is loaded automatically; set this to use one
+# somewhere else.
+# style   = ~/.config/gander/style.css
+
+# Named path shortcuts: `gander <name>` opens the repository from anywhere.
+# The name is matched case-insensitively and a leading ~ expands to $HOME.
+
+# [paths]
+# Nexus    = ~/Projects/Nexus

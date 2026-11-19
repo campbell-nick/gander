@@ -34,7 +34,13 @@ cc -O2 -std=c11 -D_GNU_SOURCE -o gander src/*.c
 `make install` copies the binary to `$(PREFIX)/bin/gander`, the UI assets to
 `$(PREFIX)/share/gander/web/` (which the binary locates automatically at
 runtime — see [How the assets are found](#how-the-assets-are-found)), and the
-manual page to `$(PREFIX)/share/man/man1/gander.1`.
+manual page to `$(PREFIX)/share/man/man1/gander.1`, and a sample config to
+`$(PREFIX)/share/gander/config.example`.
+
+If no config exists yet, `make install` also copies that sample to
+`$XDG_CONFIG_HOME/gander/config` (or `~/.config/gander/config`). It never
+overwrites an existing config, and skips this step entirely when `DESTDIR` is
+set or `GANDER_CONFIG` points somewhere else.
 
 `PREFIX` defaults to `/usr/local`. There are two sensible choices:
 

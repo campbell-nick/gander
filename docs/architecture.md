@@ -32,6 +32,7 @@ argv ─▶ main.c ──▶ config.c ──▶ server_run()  (server.c)
 |---|---|
 | `main.c` | Command-line parsing, target resolution, `--help` / `--version`, then calls `server_run()`. |
 | `config.c` | The optional config file (`~/.config/gander/config`), its `[paths]` shortcuts, and the user `style.css`. |
+| `config.example` | Sample user config; `make install` ships it and uses it for the first-run config. |
 | `server.c` | The HTTP server: a single-threaded `poll()` loop, routing, static assets, `/raw`, and Server-Sent Events. |
 | `repo.c` | Repository metadata, entirely from disk: tree, status, log, diff, search, tags, languages, CI, license, README. |
 | `walk.c` | Collect the file tree of the previewed directory. |

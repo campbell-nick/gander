@@ -57,9 +57,12 @@ make
 ## Install
 
 `make install` places the binary in `$PREFIX/bin`, the UI assets in
-`$PREFIX/share/gander/web` (found automatically at runtime), and the manual
-page in `$PREFIX/share/man/man1`, so `man gander` works after installing. The
-recommended setup is a per-user install into `~/.local`:
+`$PREFIX/share/gander/web` (found automatically at runtime), the manual
+page in `$PREFIX/share/man/man1`, and a sample config in
+`$PREFIX/share/gander/config.example`. If you have no config yet, it also
+creates `$XDG_CONFIG_HOME/gander/config` (or `~/.config/gander/config`) from
+that sample; existing configs are never overwritten. The recommended setup is
+a per-user install into `~/.local`:
 
 ```sh
 make

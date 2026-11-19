@@ -33,6 +33,7 @@ endif
 SRC := src/util.c src/walk.c src/watch.c src/md.c src/html.c src/highlight.c src/repo.c src/server.c src/config.c src/main.c
 OBJ := $(SRC:.c=.o)
 BIN := gander
+CONFIG := config.example
 
 .PHONY: all clean install uninstall run check
 
@@ -55,6 +56,18 @@ install: $(BIN)
 	install -m 0755 $(BIN) $(DESTDIR)$(BINDIR)/$(BIN)
 	install -m 0644 web/* $(DESTDIR)$(SHAREDIR)/web/
 	install -m 0644 man/gander.1 $(DESTDIR)$(MANDIR)/gander.1
+	install -m 0644 $(CONFIG) $(DESTDIR)$(SHAREDIR)/config.example
+	@if [ -z "$(DESTDIR)" ]; then \
+		if [ -n "$$XDG_CONFIG_HOME" ]; then cfgdir=$$XDG_CONFIG_HOME; \
+		elif [ -n "$$HOME" ]; then cfgdir=$$HOME/.config; \
+		else cfgdir=; fi; \
+		if [ -n "$$cfgdir" ] && [ -z "$$GANDER_CONFIG" ] && \
+		   [ ! -f "$$cfgdir/gander/config" ]; then \
+			mkdir -p "$$cfgdir/gander"; \
+			install -m 0644 $(CONFIG) "$$cfgdir/gander/config"; \
+			printf 'gander: created %s/gander/config\n' "$$cfgdir"; \
+		fi; \
+	fi
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN)
