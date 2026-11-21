@@ -32,12 +32,20 @@
           make clean
         '';
 
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+
         makeFlags = [ "PREFIX=${placeholder "out"}" ];
         # Keep the install phase from writing a default config into HOME.
         installFlags = [
           "PREFIX=${placeholder "out"}"
           "GANDER_CONFIG=/dev/null"
         ];
+
+        # Restore the Makefile's first-run behaviour at runtime instead.
+        postInstall = ''
+          install -Dm755 ./gander-init-config.sh $out/libexec/init-config.sh
+          wrapProgram $out/bin/gander --run "$out/libexec/init-config.sh"
+        '';
 
         meta = with nixpkgs.lib; {
           description = "An offline previewer for a local git repository";
