@@ -5,5 +5,5 @@ cfg="${XDG_CONFIG_HOME:-$HOME/.config}/gander/config"
 if [ ! -e "$cfg" ]; then
   root="$(dirname "$(dirname "$0")")"
   mkdir -p "$(dirname "$cfg")" || exit 1
-  cp "$root/share/gander/config.example" "$cfg"
+  install -m 0644 "$root/share/gander/config.example" "$cfg"
 fi
